@@ -454,21 +454,34 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {analytics.recentOrders?.map((ord) => (
-                        <tr key={ord.id}>
-                          <td><strong>{ord.order_number}</strong></td>
-                          <td>{ord.customer_name}</td>
-                          <td>₹{ord.total_amount}</td>
-                          <td>
-                            <span className={`status-badge ${ord.order_status.toLowerCase()}`}>
-                              {ord.order_status}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>
-                            {new Date(ord.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                      {analytics.recentOrders && analytics.recentOrders.length > 0 ? (
+                        analytics.recentOrders.map((ord) => (
+                          <tr key={ord.id}>
+                            <td><strong>{ord.order_number}</strong></td>
+                            <td>{ord.customer_name}</td>
+                            <td>₹{ord.total_amount}</td>
+                            <td>
+                              <span className={`status-badge ${ord.order_status.toLowerCase()}`}>
+                                {ord.order_status}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>
+                              {new Date(ord.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--color-warm-ivory-dim)' }}>
+                            <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', color: 'var(--color-warm-ivory)', marginBottom: '0.3rem' }}>
+                              No orders placed yet
+                            </div>
+                            <div style={{ fontSize: '0.8rem' }}>
+                              Live customer purchases will appear here automatically.
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -676,65 +689,83 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                 <tbody>
                   {ordersList
                     .filter(o => orderFilter === 'All' || orderFilter === 'all' || o.order_status.toLowerCase() === orderFilter.toLowerCase())
-                    .map((ord) => (
-                      <tr key={ord.id}>
-                        <td>
-                          <strong>{ord.order_number}</strong>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--color-warm-ivory-dim)' }}>
-                            {new Date(ord.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    .length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--color-warm-ivory-dim)' }}>
+                          <ShoppingBag size={40} strokeWidth={1} style={{ margin: '0 auto 0.8rem', opacity: 0.35, color: 'var(--color-muted-champagne)' }} />
+                          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.3rem', color: 'var(--color-warm-ivory)', marginBottom: '0.4rem' }}>
+                            No orders found
+                          </div>
+                          <div style={{ fontSize: '0.84rem' }}>
+                            {orderFilter === 'All' || orderFilter === 'all' 
+                              ? 'Your store is ready for launch! Customer purchases will be listed here automatically in real time.'
+                              : `No orders currently marked as '${orderFilter}'.`}
                           </div>
                         </td>
-                        <td>
-                          <div><strong>{ord.customer_name}</strong></div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>{ord.customer_phone}</div>
-                          <div style={{ fontSize: '0.76rem', color: 'var(--color-muted-champagne)' }}>{ord.shipping_address}, {ord.city} ({ord.pincode})</div>
-                        </td>
-                        <td>
-                          {ord.items?.map((it, i) => (
-                            <div key={i} style={{ fontSize: '0.82rem' }}>
-                              {it.quantity}x {it.name}
-                            </div>
-                          ))}
-                        </td>
-                        <td>
-                          <strong>₹{ord.total_amount}</strong>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '0.82rem' }}>{ord.payment_method}</div>
-                          <span className={`status-badge ${ord.payment_status.toLowerCase()}`} style={{ marginTop: '0.3rem' }}>
-                            {ord.payment_status}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`status-badge ${ord.order_status.toLowerCase()}`}>
-                            {ord.order_status}
-                          </span>
-                        </td>
-                        <td>
-                          {ord.tracking_number ? (
-                            <span style={{ fontSize: '0.82rem', color: 'var(--color-muted-champagne)' }}>
-                              {ord.tracking_number}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.78rem', color: '#7A6F68' }}>Not assigned</span>
-                          )}
-                        </td>
-                        <td>
-                          <button 
-                            className="btn-secondary"
-                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.74rem' }}
-                            onClick={() => setStatusUpdateModal({
-                              open: true,
-                              order: ord,
-                              status: ord.order_status,
-                              tracking_number: ord.tracking_number || ''
-                            })}
-                          >
-                            Update
-                          </button>
-                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      ordersList
+                        .filter(o => orderFilter === 'All' || orderFilter === 'all' || o.order_status.toLowerCase() === orderFilter.toLowerCase())
+                        .map((ord) => (
+                          <tr key={ord.id}>
+                            <td>
+                              <strong>{ord.order_number}</strong>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--color-warm-ivory-dim)' }}>
+                                {new Date(ord.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </td>
+                            <td>
+                              <div><strong>{ord.customer_name}</strong></div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>{ord.customer_phone}</div>
+                              <div style={{ fontSize: '0.76rem', color: 'var(--color-muted-champagne)' }}>{ord.shipping_address}, {ord.city} ({ord.pincode})</div>
+                            </td>
+                            <td>
+                              {ord.items?.map((it, i) => (
+                                <div key={i} style={{ fontSize: '0.82rem' }}>
+                                  {it.quantity}x {it.name}
+                                </div>
+                              ))}
+                            </td>
+                            <td>
+                              <strong>₹{ord.total_amount}</strong>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.82rem' }}>{ord.payment_method}</div>
+                              <span className={`status-badge ${ord.payment_status.toLowerCase()}`} style={{ marginTop: '0.3rem' }}>
+                                {ord.payment_status}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`status-badge ${ord.order_status.toLowerCase()}`}>
+                                {ord.order_status}
+                              </span>
+                            </td>
+                            <td>
+                              {ord.tracking_number ? (
+                                <span style={{ fontSize: '0.82rem', color: 'var(--color-muted-champagne)' }}>
+                                  {ord.tracking_number}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.78rem', color: '#7A6F68' }}>Not assigned</span>
+                              )}
+                            </td>
+                            <td>
+                              <button 
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.74rem' }}
+                                onClick={() => setStatusUpdateModal({
+                                  open: true,
+                                  order: ord,
+                                  status: ord.order_status,
+                                  tracking_number: ord.tracking_number || ''
+                                })}
+                              >
+                                Update
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    )}
                 </tbody>
               </table>
             </div>
