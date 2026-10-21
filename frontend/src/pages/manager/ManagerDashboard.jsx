@@ -194,6 +194,20 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
     }
   };
 
+  const handleQuickStockChange = async (prod, delta) => {
+    const newStock = Math.max(0, (prod.stock || 0) + delta);
+    try {
+      const res = await api.updateProduct(prod.id, { stock: newStock }, token);
+      if (res.success) {
+        showToast(`Stock for "${prod.name}" adjusted to ${newStock}`);
+        loadAllData();
+        if (onRefreshProducts) onRefreshProducts();
+      }
+    } catch (err) {
+      alert("Failed to update stock: " + err.message);
+    }
+  };
+
   const openAddProductModal = () => {
     setEditingProduct(null);
     setUploadError('');
@@ -555,9 +569,36 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                         )}
                       </td>
                       <td>
-                        <span style={{ color: prod.stock < 5 ? '#f87171' : 'var(--color-warm-ivory)', fontWeight: 600 }}>
-                          {prod.stock} units
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button
+                            className="icon-btn"
+                            style={{ width: '24px', height: '24px', fontSize: '0.8rem', border: '1px solid var(--color-subtle-border)' }}
+                            onClick={() => handleQuickStockChange(prod, -1)}
+                            title="Decrease stock by 1"
+                            disabled={prod.stock <= 0}
+                          >
+                            -
+                          </button>
+                          <span style={{ color: prod.stock < 5 ? '#f87171' : 'var(--color-warm-ivory)', fontWeight: 600, minWidth: '32px', textAlign: 'center', fontSize: '0.88rem' }}>
+                            {prod.stock}
+                          </span>
+                          <button
+                            className="icon-btn"
+                            style={{ width: '24px', height: '24px', fontSize: '0.8rem', border: '1px solid var(--color-subtle-border)' }}
+                            onClick={() => handleQuickStockChange(prod, 1)}
+                            title="Increase stock by 1"
+                          >
+                            +
+                          </button>
+                          <button
+                            className="btn-secondary"
+                            style={{ padding: '0.2rem 0.45rem', fontSize: '0.68rem', marginLeft: '0.25rem' }}
+                            onClick={() => handleQuickStockChange(prod, 5)}
+                            title="Quick restock +5 units"
+                          >
+                            +5
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <span className={`status-badge ${prod.stock > 0 ? 'confirmed' : 'cancelled'}`}>

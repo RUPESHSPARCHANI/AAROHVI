@@ -254,7 +254,30 @@ class DatabaseEngine {
     const order = this.getOrderById(id);
     if (!order) return null;
 
-    if (order_status) order.order_status = order_status;
+    const previousStatus = order.order_status;
+
+    // Automatic inventory management on cancellation / un-cancellation
+    if (order_status && order_status !== previousStatus) {
+      if (order_status === 'Cancelled' && previousStatus !== 'Cancelled') {
+        // Automatically restore inventory when order is cancelled
+        (order.items || []).forEach(item => {
+          const prod = this.getProductById(item.id);
+          if (prod) {
+            this.updateProduct(prod.id, { stock: (prod.stock || 0) + (Number(item.quantity) || 1) });
+          }
+        });
+      } else if (previousStatus === 'Cancelled' && order_status !== 'Cancelled') {
+        // Re-decrement inventory if un-cancelled
+        (order.items || []).forEach(item => {
+          const prod = this.getProductById(item.id);
+          if (prod) {
+            this.updateProduct(prod.id, { stock: Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1)) });
+          }
+        });
+      }
+      order.order_status = order_status;
+    }
+
     if (tracking_number !== undefined) order.tracking_number = tracking_number;
     order.updated_at = new Date().toISOString();
 
