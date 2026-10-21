@@ -70,7 +70,13 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
     open: false,
     order: null,
     status: '',
-    tracking_number: ''
+    payment_status: '',
+    courier_name: '',
+    tracking_number: '',
+    tracking_url: '',
+    estimated_delivery: '',
+    shipping_fee: '',
+    notes: ''
   });
 
   // Cloudinary Multi-Image Upload Handler
@@ -282,12 +288,34 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
   const handleUpdateOrderStatus = async (e) => {
     e.preventDefault();
     try {
-      const { order, status, tracking_number } = statusUpdateModal;
-      const res = await api.updateOrderStatus(order.id, { order_status: status, tracking_number }, token);
+      const { order, status, payment_status, courier_name, tracking_number, tracking_url, estimated_delivery, shipping_fee, notes } = statusUpdateModal;
+      const res = await api.updateOrderStatus(order.id, { 
+        order_status: status, 
+        payment_status,
+        courier_name,
+        tracking_number, 
+        tracking_url,
+        estimated_delivery,
+        shipping_fee: shipping_fee !== '' ? Number(shipping_fee) : undefined,
+        notes
+      }, token);
       if (res.success) {
-        showToast(`Order #${order.order_number} marked as ${status}`);
-        setStatusUpdateModal({ open: false, order: null, status: '', tracking_number: '' });
+        showToast(`Order #${order.order_number} updated to ${status}`);
+        setStatusUpdateModal({ 
+          open: false, 
+          order: null, 
+          status: '', 
+          payment_status: '',
+          courier_name: '',
+          tracking_number: '',
+          tracking_url: '',
+          estimated_delivery: '',
+          shipping_fee: '',
+          notes: ''
+        });
         loadAllData();
+      } else {
+        alert("Status update failed: " + (res.message || 'Unknown error'));
       }
     } catch (err) {
       alert("Status update failed: " + err.message);
@@ -668,7 +696,7 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
 
               {/* Status Filter Tabs */}
               <div className="category-pills">
-                {['All', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'].map((st) => (
+                {['All', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled', 'Refunded'].map((st) => (
                   <button
                     key={st}
                     className={`category-pill ${orderFilter.toLowerCase() === st.toLowerCase() ? 'active' : ''}`}
@@ -690,7 +718,7 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                     <th>Total (INR)</th>
                     <th>Payment</th>
                     <th>Fulfillment Status</th>
-                    <th>Courier Tracking</th>
+                    <th>Courier & Tracking</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -724,37 +752,79 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                             </td>
                             <td>
                               <div><strong>{ord.customer_name}</strong></div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>{ord.customer_email}</div>
                               <div style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory-dim)' }}>{ord.customer_phone}</div>
-                              <div style={{ fontSize: '0.76rem', color: 'var(--color-muted-champagne)' }}>{ord.shipping_address}, {ord.city} ({ord.pincode})</div>
+                              <div style={{ fontSize: '0.76rem', color: 'var(--color-muted-champagne)', marginTop: '0.2rem' }}>
+                                {ord.shipping_address}, {ord.city}, {ord.state} ({ord.pincode})
+                              </div>
+                              {ord.delivery_instructions && (
+                                <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontStyle: 'italic', marginTop: '0.2rem' }}>
+                                  Note: "{ord.delivery_instructions}"
+                                </div>
+                              )}
                             </td>
                             <td>
                               {ord.items?.map((it, i) => (
-                                <div key={i} style={{ fontSize: '0.82rem' }}>
-                                  {it.quantity}x {it.name}
+                                <div key={i} style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                  {it.quantity}× {it.name}
                                 </div>
                               ))}
                             </td>
                             <td>
-                              <strong>₹{ord.total_amount}</strong>
+                              <strong style={{ color: 'var(--color-muted-champagne)' }}>₹{ord.total_amount}</strong>
+                              {ord.shipping_fee > 0 && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--color-warm-ivory-dim)' }}>
+                                  (incl. ₹{ord.shipping_fee} shipping)
+                                </div>
+                              )}
                             </td>
                             <td>
                               <div style={{ fontSize: '0.82rem' }}>{ord.payment_method}</div>
-                              <span className={`status-badge ${ord.payment_status.toLowerCase()}`} style={{ marginTop: '0.3rem' }}>
+                              <span 
+                                className={`status-badge ${ord.payment_status?.toLowerCase() || 'pending'}`} 
+                                style={{ marginTop: '0.3rem', display: 'inline-block' }}
+                              >
                                 {ord.payment_status}
                               </span>
+                              {ord.razorpay_payment_id && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--color-warm-ivory-dim)', marginTop: '0.2rem' }}>
+                                  RP: {ord.razorpay_payment_id.slice(-8)}
+                                </div>
+                              )}
                             </td>
                             <td>
-                              <span className={`status-badge ${ord.order_status.toLowerCase()}`}>
-                                {ord.order_status}
+                              <span className={`status-badge ${(ord.order_status || 'confirmed').toLowerCase().replace(/\s+/g, '-')}`}>
+                                {ord.order_status || 'Confirmed'}
                               </span>
                             </td>
                             <td>
+                              {ord.courier_name && (
+                                <div style={{ fontSize: '0.78rem', color: 'var(--color-warm-ivory)', fontWeight: 600 }}>
+                                  {ord.courier_name}
+                                </div>
+                              )}
                               {ord.tracking_number ? (
-                                <span style={{ fontSize: '0.82rem', color: 'var(--color-muted-champagne)' }}>
-                                  {ord.tracking_number}
-                                </span>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--color-muted-champagne)' }}>
+                                  AWB: {ord.tracking_number}
+                                </div>
                               ) : (
-                                <span style={{ fontSize: '0.78rem', color: '#7A6F68' }}>Not assigned</span>
+                                <span style={{ fontSize: '0.76rem', color: '#7A6F68' }}>Not assigned</span>
+                              )}
+                              {ord.tracking_url && (
+                                <a 
+                                  href={ord.tracking_url} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  style={{ fontSize: '0.72rem', color: '#60a5fa', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.2rem' }}
+                                >
+                                  <span>Track Live</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                              {ord.estimated_delivery && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--color-warm-ivory-dim)', marginTop: '0.2rem' }}>
+                                  Est: {ord.estimated_delivery}
+                                </div>
                               )}
                             </td>
                             <td>
@@ -764,11 +834,17 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                                 onClick={() => setStatusUpdateModal({
                                   open: true,
                                   order: ord,
-                                  status: ord.order_status,
-                                  tracking_number: ord.tracking_number || ''
+                                  status: ord.order_status || 'Confirmed',
+                                  payment_status: ord.payment_status || 'Pending',
+                                  courier_name: ord.courier_name || '',
+                                  tracking_number: ord.tracking_number || '',
+                                  tracking_url: ord.tracking_url || '',
+                                  estimated_delivery: ord.estimated_delivery || '',
+                                  shipping_fee: ord.shipping_fee !== undefined ? ord.shipping_fee : '',
+                                  notes: ord.notes || ''
                                 })}
                               >
-                                Update
+                                Fulfill
                               </button>
                             </td>
                           </tr>
@@ -1308,50 +1384,172 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
         </div>
       )}
 
-      {/* ORDER STATUS UPDATE MODAL */}
+      {/* ORDER STATUS UPDATE & FULFILLMENT MODAL */}
       {statusUpdateModal.open && statusUpdateModal.order && (
         <div 
           className="modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setStatusUpdateModal({ open: false, order: null, status: '', tracking_number: '' });
+            if (e.target === e.currentTarget) {
+              setStatusUpdateModal({
+                open: false,
+                order: null,
+                status: '',
+                payment_status: '',
+                courier_name: '',
+                tracking_number: '',
+                tracking_url: '',
+                estimated_delivery: '',
+                shipping_fee: '',
+                notes: ''
+              });
+            }
           }}
         >
-          <div className="checkout-modal-card" style={{ maxWidth: '500px' }}>
+          <div className="checkout-modal-card" style={{ maxWidth: '580px' }}>
             <div className="reveal-panel-header">
-              <span style={{ fontSize: '0.88rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-warm-ivory)', fontWeight: 600 }}>
-                Update Order #{statusUpdateModal.order.order_number}
-              </span>
+              <div>
+                <span style={{ fontSize: '0.85rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-warm-ivory)', fontWeight: 600 }}>
+                  Order Fulfillment: #{statusUpdateModal.order.order_number}
+                </span>
+                <div style={{ fontSize: '0.74rem', color: 'var(--color-warm-ivory-dim)', marginTop: '2px' }}>
+                  Customer: {statusUpdateModal.order.customer_name} ({statusUpdateModal.order.customer_email})
+                </div>
+              </div>
               <button 
                 className="reveal-close-btn"
-                onClick={() => setStatusUpdateModal({ open: false, order: null, status: '', tracking_number: '' })}
+                onClick={() => setStatusUpdateModal({
+                  open: false,
+                  order: null,
+                  status: '',
+                  payment_status: '',
+                  courier_name: '',
+                  tracking_number: '',
+                  tracking_url: '',
+                  estimated_delivery: '',
+                  shipping_fee: '',
+                  notes: ''
+                })}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateOrderStatus} style={{ padding: '2rem' }}>
-              <div className="form-group" style={{ marginBottom: '1.2rem' }}>
-                <label className="form-label">Fulfillment Status</label>
-                <select 
-                  className="form-control"
-                  value={statusUpdateModal.status}
-                  onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, status: e.target.value })}
-                >
-                  <option value="Confirmed">Confirmed</option>
-                  <option value="Shipped">Shipped (In Transit)</option>
-                  <option value="Delivered">Delivered</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+            <form onSubmit={handleUpdateOrderStatus} style={{ padding: '1.8rem 2rem' }}>
+              {/* Delivery Details Snapshot */}
+              <div style={{
+                backgroundColor: 'rgba(0,0,0,0.35)',
+                border: '1px solid var(--color-subtle-border)',
+                padding: '0.85rem 1rem',
+                borderRadius: '3px',
+                fontSize: '0.78rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ color: 'var(--color-muted-champagne)', fontWeight: 600, marginBottom: '0.2rem' }}>
+                  Shipping Destination:
+                </div>
+                <div style={{ color: 'var(--color-warm-ivory)' }}>
+                  {statusUpdateModal.order.shipping_address}, {statusUpdateModal.order.city}, {statusUpdateModal.order.state} - {statusUpdateModal.order.pincode}
+                </div>
+                {statusUpdateModal.order.delivery_instructions && (
+                  <div style={{ color: '#f59e0b', marginTop: '0.35rem', fontStyle: 'italic' }}>
+                    Customer Note: "{statusUpdateModal.order.delivery_instructions}"
+                  </div>
+                )}
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1.8rem' }}>
-                <label className="form-label">Courier Tracking AWB Number</label>
+              {/* Status Selectors */}
+              <div className="checkout-form-grid" style={{ marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Order / Fulfillment Status</label>
+                  <select 
+                    className="form-control"
+                    value={statusUpdateModal.status}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, status: e.target.value })}
+                  >
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Processing">Processing (Handcrafting)</option>
+                    <option value="Shipped">Shipped (In Transit)</option>
+                    <option value="Out for Delivery">Out for Delivery</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment Status</label>
+                  <select 
+                    className="form-control"
+                    value={statusUpdateModal.payment_status}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, payment_status: e.target.value })}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Failed">Failed</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Courier & AWB */}
+              <div className="checkout-form-grid" style={{ marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Courier Partner</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="e.g. Blue Dart / Delhivery / DTDC"
+                    value={statusUpdateModal.courier_name}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, courier_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Tracking / AWB Number</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="e.g. DEL9921048821IN"
+                    value={statusUpdateModal.tracking_number}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, tracking_number: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Tracking Link & Estimated Date */}
+              <div className="checkout-form-grid" style={{ marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Direct Tracking URL</label>
+                  <input 
+                    type="url" 
+                    className="form-control"
+                    placeholder="https://track.courier.com/..."
+                    value={statusUpdateModal.tracking_url}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, tracking_url: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Estimated Delivery Date</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="e.g. 26 Oct 2026 or 3-5 Days"
+                    value={statusUpdateModal.estimated_delivery}
+                    onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, estimated_delivery: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="form-group" style={{ marginBottom: '1.6rem' }}>
+                <label className="form-label">Internal Fulfillment Notes</label>
                 <input 
                   type="text" 
                   className="form-control"
-                  placeholder="e.g. DEL9921048821IN"
-                  value={statusUpdateModal.tracking_number}
-                  onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, tracking_number: e.target.value })}
+                  placeholder="e.g. Inspected & packed in signature velvet pouch"
+                  value={statusUpdateModal.notes}
+                  onChange={(e) => setStatusUpdateModal({ ...statusUpdateModal, notes: e.target.value })}
                 />
               </div>
 
@@ -1359,7 +1557,18 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                 <button 
                   type="button" 
                   className="btn-secondary"
-                  onClick={() => setStatusUpdateModal({ open: false, order: null, status: '', tracking_number: '' })}
+                  onClick={() => setStatusUpdateModal({
+                    open: false,
+                    order: null,
+                    status: '',
+                    payment_status: '',
+                    courier_name: '',
+                    tracking_number: '',
+                    tracking_url: '',
+                    estimated_delivery: '',
+                    shipping_fee: '',
+                    notes: ''
+                  })}
                 >
                   Cancel
                 </button>
@@ -1367,7 +1576,7 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                   type="submit" 
                   className="btn-primary"
                 >
-                  Update Order
+                  <Save size={14} /> Update Fulfillment
                 </button>
               </div>
             </form>

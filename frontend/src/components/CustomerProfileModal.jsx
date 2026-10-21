@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, User, Package, MapPin, Phone, Mail, LogOut, CheckCircle, Clock, Truck, Save, AlertCircle } from 'lucide-react';
+import { X, User, Package, MapPin, Phone, Mail, LogOut, CheckCircle, Clock, Truck, Save, AlertCircle, ExternalLink } from 'lucide-react';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 
 export const CustomerProfileModal = () => {
@@ -274,21 +274,42 @@ export const CustomerProfileModal = () => {
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           <span style={{
-                            fontSize: '0.7rem',
+                            fontSize: '0.68rem',
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
-                            padding: '0.25rem 0.6rem',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '2px',
+                            backgroundColor: order.payment_status === 'Paid'
+                              ? 'rgba(74, 222, 128, 0.15)'
+                              : order.payment_status === 'Failed'
+                              ? 'rgba(239, 68, 68, 0.15)'
+                              : 'rgba(245, 158, 11, 0.15)',
+                            color: order.payment_status === 'Paid'
+                              ? '#4ade80'
+                              : order.payment_status === 'Failed'
+                              ? '#f87171'
+                              : '#f59e0b',
+                            border: '1px solid currentColor'
+                          }}>
+                            {order.payment_status || 'Pending'}
+                          </span>
+
+                          <span style={{
+                            fontSize: '0.68rem',
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            padding: '0.2rem 0.5rem',
                             borderRadius: '2px',
                             backgroundColor: order.order_status === 'Delivered' 
                               ? 'rgba(74, 222, 128, 0.15)' 
-                              : order.order_status === 'Shipped' 
+                              : order.order_status === 'Shipped' || order.order_status === 'Out for Delivery'
                               ? 'rgba(96, 165, 250, 0.15)' 
                               : 'rgba(217, 185, 155, 0.15)',
                             color: order.order_status === 'Delivered' 
                               ? '#4ade80' 
-                              : order.order_status === 'Shipped' 
+                              : order.order_status === 'Shipped' || order.order_status === 'Out for Delivery'
                               ? '#60a5fa' 
                               : 'var(--color-muted-champagne)',
                             border: '1px solid currentColor'
@@ -321,29 +342,73 @@ export const CustomerProfileModal = () => {
                         ))}
                       </div>
 
-                      {/* Order Footer & Tracking */}
+                      {/* Shipping & Delivery Details */}
+                      <div style={{
+                        marginTop: '0.75rem',
+                        padding: '0.65rem 0.8rem',
+                        backgroundColor: 'rgba(0,0,0,0.25)',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                        borderRadius: '2px',
+                        fontSize: '0.76rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.35rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-warm-ivory-dim)' }}>
+                          <span>Deliver To:</span>
+                          <span style={{ color: 'var(--color-warm-ivory)', textAlign: 'right' }}>
+                            {order.city}, {order.state} ({order.pincode})
+                          </span>
+                        </div>
+
+                        {(order.courier_name || order.tracking_number) && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#60a5fa', paddingTop: '0.3rem', borderTop: '1px dashed rgba(255,255,255,0.07)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Truck size={13} />
+                              <span>{order.courier_name ? `${order.courier_name}: ` : 'Courier: '}{order.tracking_number}</span>
+                            </span>
+                            {order.tracking_url && (
+                              <a
+                                href={order.tracking_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                  color: 'var(--color-muted-champagne)',
+                                  textDecoration: 'underline',
+                                  fontSize: '0.74rem'
+                                }}
+                              >
+                                <span>Track Package</span>
+                                <ExternalLink size={10} />
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {order.estimated_delivery && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-warm-ivory-dim)' }}>
+                            <span>Estimated Delivery:</span>
+                            <span style={{ color: 'var(--color-muted-champagne)' }}>{order.estimated_delivery}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Order Total Footer */}
                       <div style={{ 
-                        marginTop: '0.85rem', 
-                        paddingTop: '0.75rem', 
+                        marginTop: '0.75rem', 
+                        paddingTop: '0.65rem', 
                         borderTop: '1px solid rgba(255,255,255,0.06)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        fontSize: '0.78rem'
+                        fontSize: '0.82rem'
                       }}>
-                        <div style={{ color: 'var(--color-warm-ivory-dim)' }}>
-                          {order.tracking_number ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#60a5fa' }}>
-                              <Truck size={13} />
-                              <span>Courier: {order.tracking_number}</span>
-                            </span>
-                          ) : (
-                            <span>Standard Express Dispatch</span>
-                          )}
-                        </div>
-
+                        <span style={{ color: 'var(--color-warm-ivory-dim)' }}>Payment: {order.payment_method}</span>
                         <div style={{ fontWeight: 600, color: 'var(--color-warm-ivory)' }}>
-                          Total: ₹{Number(order.total_amount).toLocaleString('en-IN')}
+                          Total: <span style={{ color: 'var(--color-muted-champagne)' }}>₹{Number(order.total_amount).toLocaleString('en-IN')}</span>
                         </div>
                       </div>
                     </div>

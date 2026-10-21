@@ -80,11 +80,55 @@ export const api = {
   },
 
   // Orders
-  async createOrder(orderData) {
+  async createOrder(orderData, token) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(orderData)
+    });
+    return res.json();
+  },
+
+  // Razorpay Online Payments
+  async getPaymentConfig() {
+    const res = await fetch(`${API_BASE_URL}/payment/config`);
+    return res.json();
+  },
+
+  async createPaymentOrder(orderData, token) {
+    const res = await fetch(`${API_BASE_URL}/payment/create-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(orderData)
+    });
+    return res.json();
+  },
+
+  async verifyPayment(verificationData, token) {
+    const res = await fetch(`${API_BASE_URL}/payment/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(verificationData)
+    });
+    return res.json();
+  },
+
+  async recordPaymentFailure(failureData, token) {
+    const res = await fetch(`${API_BASE_URL}/payment/failure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(failureData)
     });
     return res.json();
   },

@@ -192,30 +192,149 @@ class DatabaseEngine {
     return true;
   }
 
-  // --- ORDERS ---
+  // --- ORDERS & PAYMENTS ---
+  validateAndPriceItems(rawItems = []) {
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      throw new Error('Your cart is empty. Please add items to proceed.');
+    }
+
+    let subtotal = 0;
+    const verifiedItems = rawItems.map(raw => {
+      const prodId = raw.id || raw.product_id;
+      const product = this.getProductById(prodId);
+
+      if (!product) {
+        throw new Error(`Product "${raw.name || prodId}" was not found in our catalog.`);
+      }
+
+      const qty = Math.max(1, parseInt(raw.quantity, 10) || 1);
+      const stock = product.stock !== undefined ? product.stock : 10;
+
+      if (stock < qty) {
+        throw new Error(`Insufficient stock for "${product.name}". Only ${stock} pieces available.`);
+      }
+
+      const authoritativePrice = Number(product.price);
+      subtotal += authoritativePrice * qty;
+
+      return {
+        id: product.id,
+        product_id: product.id,
+        name: product.name,
+        price: authoritativePrice,
+        quantity: qty,
+        variant: raw.variant || null,
+        image_url: product.image_url || product.gallery?.[0] || '/images/ring_sculptural.jpg'
+      };
+    });
+
+    const settings = this.data.siteContent?.settings || { freeShippingThreshold: 499, standardShippingFee: 49 };
+    const threshold = Number(settings.freeShippingThreshold) || 499;
+    const fee = Number(settings.standardShippingFee) || 49;
+    const shipping_fee = subtotal >= threshold ? 0 : fee;
+    const total_amount = subtotal + shipping_fee;
+
+    return {
+      verifiedItems,
+      subtotal,
+      shipping_fee,
+      total_amount
+    };
+  }
+
   getOrders(statusFilter) {
     if (!statusFilter || statusFilter === 'all' || statusFilter === 'All') {
-      return this.data.orders;
+      return this.data.orders || [];
     }
-    return this.data.orders.filter(o => o.order_status.toLowerCase() === statusFilter.toLowerCase());
+    return (this.data.orders || []).filter(o => 
+      o.order_status.toLowerCase() === statusFilter.toLowerCase()
+    );
   }
 
   getOrderById(id) {
-    return this.data.orders.find(o => o.id === id || o.order_number === id);
+    if (!id) return null;
+    return (this.data.orders || []).find(o => 
+      o.id === id || 
+      o.order_number === id || 
+      o.razorpay_order_id === id
+    );
   }
 
   createOrder(orderPayload) {
+    // Authoritatively price and validate stock on the server
+    const { verifiedItems, subtotal, shipping_fee, total_amount } = this.validateAndPriceItems(orderPayload.items);
+
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const order_number = `ARH-${new Date().getFullYear()}-${randomSuffix}`;
     const id = "ord-" + Date.now();
 
-    // Calculate subtotal
-    const items = orderPayload.items || [];
-    let subtotal = 0;
-    items.forEach(item => {
-      subtotal += (Number(item.price) || 0) * (Number(item.quantity) || 1);
-      
-      // Auto-decrement product stock
+    const isCod = orderPayload.payment_method === 'Cash on Delivery (COD)';
+    const payment_method = orderPayload.payment_method || 'Razorpay Online (UPI/Cards/NetBanking)';
+    const payment_status = isCod ? 'Pending' : (orderPayload.payment_status || 'Pending');
+    const order_status = isCod ? 'Confirmed' : (orderPayload.order_status || 'Pending Payment');
+
+    // Auto-reserve stock if COD or pre-authorized
+    if (isCod) {
+      verifiedItems.forEach(item => {
+        const prod = this.getProductById(item.id);
+        if (prod) {
+          const newStock = Math.max(0, (prod.stock || 0) - item.quantity);
+          this.updateProduct(prod.id, { stock: newStock });
+        }
+      });
+    }
+
+    const newOrder = {
+      id,
+      order_number,
+      customer_id: orderPayload.customer_id || null,
+      customer_name: String(orderPayload.customer_name).trim(),
+      customer_email: String(orderPayload.customer_email).trim().toLowerCase(),
+      customer_phone: String(orderPayload.customer_phone).trim(),
+      shipping_address: String(orderPayload.shipping_address).trim(),
+      city: String(orderPayload.city || 'Bengaluru').trim(),
+      state: String(orderPayload.state || 'Karnataka').trim(),
+      pincode: String(orderPayload.pincode || '560001').trim(),
+      delivery_instructions: orderPayload.delivery_instructions ? String(orderPayload.delivery_instructions).trim() : '',
+      payment_method,
+      payment_status,
+      order_status,
+      razorpay_order_id: orderPayload.razorpay_order_id || null,
+      razorpay_payment_id: orderPayload.razorpay_payment_id || null,
+      razorpay_signature: orderPayload.razorpay_signature || null,
+      items: verifiedItems,
+      subtotal,
+      shipping_fee,
+      total_amount,
+      courier_name: null,
+      tracking_number: null,
+      tracking_url: null,
+      estimated_delivery: null,
+      email_sent: false,
+      email_sent_at: null,
+      payment_verified_at: null,
+      notes: orderPayload.notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (!this.data.orders) this.data.orders = [];
+    this.data.orders.unshift(newOrder);
+    this.save();
+    return newOrder;
+  }
+
+  markOrderPaid(orderIdOrNumber, { payment_id, razorpay_signature }) {
+    const order = this.getOrderById(orderIdOrNumber);
+    if (!order) return null;
+
+    // Idempotency: prevent duplicate payment processing
+    if (order.payment_status === 'Paid') {
+      return { alreadyProcessed: true, order };
+    }
+
+    // Deduct stock on successful payment confirmation
+    (order.items || []).forEach(item => {
       const prod = this.getProductById(item.id);
       if (prod) {
         const newStock = Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1));
@@ -223,57 +342,38 @@ class DatabaseEngine {
       }
     });
 
-    const settings = this.data.siteContent?.settings || { freeShippingThreshold: 499, standardShippingFee: 49 };
-    const shipping_fee = subtotal >= settings.freeShippingThreshold ? 0 : settings.standardShippingFee;
-    const total_amount = subtotal + shipping_fee;
+    order.payment_status = 'Paid';
+    order.order_status = 'Confirmed';
+    order.razorpay_payment_id = payment_id;
+    if (razorpay_signature) order.razorpay_signature = razorpay_signature;
+    order.payment_verified_at = new Date().toISOString();
+    order.updated_at = new Date().toISOString();
 
-    const newOrder = {
-      id,
-      order_number,
-      customer_id: orderPayload.customer_id || (this.getCustomerByEmail(orderPayload.customer_email)?.id) || null,
-      customer_name: orderPayload.customer_name,
-      customer_email: orderPayload.customer_email,
-      customer_phone: orderPayload.customer_phone,
-      shipping_address: orderPayload.shipping_address,
-      city: orderPayload.city,
-      state: orderPayload.state,
-      pincode: orderPayload.pincode,
-      payment_method: orderPayload.payment_method || "UPI",
-      payment_status: orderPayload.payment_method === "Cash on Delivery (COD)" ? "Pending" : "Paid",
-      order_status: "Confirmed",
-      items,
-      subtotal,
-      shipping_fee,
-      total_amount,
-      tracking_number: null,
-      notes: orderPayload.notes || "",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    this.data.orders.unshift(newOrder);
     this.save();
-    return newOrder;
+    return { alreadyProcessed: false, order };
   }
 
-  updateOrderStatus(id, { order_status, tracking_number }) {
+  updateOrderStatus(id, updates = {}) {
     const order = this.getOrderById(id);
     if (!order) return null;
 
     const previousStatus = order.order_status;
+    const newStatus = updates.order_status;
 
-    // Automatic inventory management on cancellation / un-cancellation
-    if (order_status && order_status !== previousStatus) {
-      if (order_status === 'Cancelled' && previousStatus !== 'Cancelled') {
-        // Automatically restore inventory when order is cancelled
+    // Automatic inventory reconciliation on cancellation or refund
+    if (newStatus && newStatus !== previousStatus) {
+      if ((newStatus === 'Cancelled' || newStatus === 'Refunded') && 
+          previousStatus !== 'Cancelled' && previousStatus !== 'Refunded') {
+        // Restore inventory back to products
         (order.items || []).forEach(item => {
           const prod = this.getProductById(item.id);
           if (prod) {
             this.updateProduct(prod.id, { stock: (prod.stock || 0) + (Number(item.quantity) || 1) });
           }
         });
-      } else if (previousStatus === 'Cancelled' && order_status !== 'Cancelled') {
-        // Re-decrement inventory if un-cancelled
+      } else if ((previousStatus === 'Cancelled' || previousStatus === 'Refunded') && 
+                 newStatus !== 'Cancelled' && newStatus !== 'Refunded') {
+        // Re-decrement inventory if restored
         (order.items || []).forEach(item => {
           const prod = this.getProductById(item.id);
           if (prod) {
@@ -281,12 +381,30 @@ class DatabaseEngine {
           }
         });
       }
-      order.order_status = order_status;
+      order.order_status = newStatus;
     }
 
-    if (tracking_number !== undefined) order.tracking_number = tracking_number;
-    order.updated_at = new Date().toISOString();
+    if (updates.payment_status !== undefined) order.payment_status = updates.payment_status;
+    if (updates.courier_name !== undefined) order.courier_name = updates.courier_name;
+    if (updates.tracking_number !== undefined) order.tracking_number = updates.tracking_number;
+    if (updates.tracking_url !== undefined) order.tracking_url = updates.tracking_url;
+    if (updates.estimated_delivery !== undefined) order.estimated_delivery = updates.estimated_delivery;
+    if (updates.shipping_fee !== undefined) {
+      order.shipping_fee = Number(updates.shipping_fee);
+      order.total_amount = (order.subtotal || 0) + order.shipping_fee;
+    }
+    if (updates.notes !== undefined) order.notes = updates.notes;
 
+    order.updated_at = new Date().toISOString();
+    this.save();
+    return order;
+  }
+
+  markEmailSent(id) {
+    const order = this.getOrderById(id);
+    if (!order) return null;
+    order.email_sent = true;
+    order.email_sent_at = new Date().toISOString();
     this.save();
     return order;
   }
