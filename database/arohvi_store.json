@@ -14,7 +14,7 @@
       "care_instructions": "Store in airtight cloth pouch.",
       "story": "",
       "styling_tip": "",
-      "stock": 10,
+      "stock": 9,
       "in_stock": 1,
       "image_url": "/images/hasli_choker.jpg",
       "gallery": [
@@ -31,7 +31,7 @@
       "is_featured": 0,
       "is_bestseller": 0,
       "created_at": "2026-10-21T16:29:09.480Z",
-      "updated_at": "2026-10-21T16:46:44.796Z"
+      "updated_at": "2026-10-21T17:37:16.021Z"
     },
     {
       "id": "prod-1",
@@ -291,6 +291,36 @@
       "id": "col-5",
       "name": "Necklaces & Haslis",
       "slug": "necklaces-haslis"
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust-1792603933802",
+      "name": "Ananya Deshmukh",
+      "email": "ananya@example.com",
+      "phone": "+91 91234 56789",
+      "shipping_address": "15 Lavelle Road",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "pincode": "560001",
+      "password_hash": "c84eafdb5ccb9da15c022b8bf44aac918cdaf5f28c6b0b7d370c39dbd19e1d27b73a45a2cca398f04e6cd1dd8bcf5ded9b38c282d05807b3107b10e79808373f",
+      "salt": "ba1c59c4bf5c1525fc8e7aeb76a003f4",
+      "created_at": "2026-10-21T17:32:13.802Z",
+      "updated_at": "2026-10-21T17:32:13.805Z"
+    },
+    {
+      "id": "cust-1792604235962",
+      "name": "Priya Sundaram",
+      "email": "priya_1792604235852@example.com",
+      "phone": "+91 99999 88888",
+      "shipping_address": "Flat 4B, Emerald Heights, MG Road",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "pincode": "560025",
+      "password_hash": "202bf4277a793e1d556ca92de0a9d7558c8509b90fdd619c038cc2e47837868c23e44564d25c6aad335eedf755c139eaf847f9c1de61a2e763b172c1201b982a",
+      "salt": "d8cdc9bfe4a4410643d35dba22ed3323",
+      "created_at": "2026-10-21T17:37:15.962Z",
+      "updated_at": "2026-10-21T17:37:16.010Z"
     }
   ]
 }

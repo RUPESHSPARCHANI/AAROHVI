@@ -150,5 +150,50 @@ export const api = {
       body: JSON.stringify(credentials)
     });
     return res.json();
+  },
+
+  // Customer Auth & Profiles
+  async customerRegister(customerData) {
+    const res = await fetch(`${API_BASE_URL}/customer/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customerData)
+    });
+    return res.json();
+  },
+
+  async customerLogin(credentials) {
+    const res = await fetch(`${API_BASE_URL}/customer/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    return res.json();
+  },
+
+  async getCustomerProfile(token) {
+    const res = await fetch(`${API_BASE_URL}/customer/profile`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return res.json();
+  },
+
+  async updateCustomerProfile(data, token) {
+    const res = await fetch(`${API_BASE_URL}/customer/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  async getCustomerOrders(token) {
+    const res = await fetch(`${API_BASE_URL}/customer/orders`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return res.json();
   }
 };

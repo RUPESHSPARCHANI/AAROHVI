@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { ManagerProvider } from './context/ManagerContext';
+import { CustomerAuthProvider } from './context/CustomerAuthContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { CinematicSlideUpReveal } from './components/CinematicSlideUpReveal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { TrackOrderModal } from './components/TrackOrderModal';
+import { CustomerAuthModal } from './components/CustomerAuthModal';
+import { CustomerProfileModal } from './components/CustomerProfileModal';
 import { UserHome } from './pages/user/UserHome';
 import { ManagerLogin } from './pages/manager/ManagerLogin';
 import { ManagerDashboard } from './pages/manager/ManagerDashboard';
@@ -93,6 +96,12 @@ function CustomerStore({ products, siteContent, onRefreshData }) {
         isOpen={isTrackOrderOpen}
         onClose={() => setIsTrackOrderOpen(false)}
       />
+
+      {/* Customer Login & Registration Modal */}
+      <CustomerAuthModal />
+
+      {/* Customer Profile & Past Orders Modal */}
+      <CustomerProfileModal />
     </div>
   );
 }
@@ -121,49 +130,51 @@ export default function App() {
   return (
     <CartProvider>
       <ManagerProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public Customer Website */}
-            <Route 
-              path="/" 
-              element={
-                <CustomerStore 
-                  products={products} 
-                  siteContent={siteContent} 
-                  onRefreshData={fetchStoreData} 
-                />
-              } 
-            />
+        <CustomerAuthProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public Customer Website */}
+              <Route 
+                path="/" 
+                element={
+                  <CustomerStore 
+                    products={products} 
+                    siteContent={siteContent} 
+                    onRefreshData={fetchStoreData} 
+                  />
+                } 
+              />
 
-            {/* Direct Manager Login */}
-            <Route 
-              path="/manager/login" 
-              element={<ManagerLogin />} 
-            />
+              {/* Direct Manager Login */}
+              <Route 
+                path="/manager/login" 
+                element={<ManagerLogin />} 
+              />
 
-            {/* Private Protected Manager Dashboard */}
-            <Route 
-              path="/manager/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <ManagerDashboard onRefreshProducts={fetchStoreData} />
-                </ProtectedRoute>
-              } 
-            />
+              {/* Private Protected Manager Dashboard */}
+              <Route 
+                path="/manager/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <ManagerDashboard onRefreshProducts={fetchStoreData} />
+                  </ProtectedRoute>
+                } 
+              />
 
-            {/* Convenience alias for /manager -> /manager/dashboard */}
-            <Route 
-              path="/manager" 
-              element={<Navigate to="/manager/dashboard" replace />} 
-            />
+              {/* Convenience alias for /manager -> /manager/dashboard */}
+              <Route 
+                path="/manager" 
+                element={<Navigate to="/manager/dashboard" replace />} 
+              />
 
-            {/* Fallback unknown paths to Customer Home */}
-            <Route 
-              path="*" 
-              element={<Navigate to="/" replace />} 
-            />
-          </Routes>
-        </BrowserRouter>
+              {/* Fallback unknown paths to Customer Home */}
+              <Route 
+                path="*" 
+                element={<Navigate to="/" replace />} 
+              />
+            </Routes>
+          </BrowserRouter>
+        </CustomerAuthProvider>
       </ManagerProvider>
     </CartProvider>
   );

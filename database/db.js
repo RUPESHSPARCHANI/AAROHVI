@@ -4,6 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { defaultProducts, defaultSiteContent, defaultOrders } from './seedData.js';
 
@@ -16,6 +17,7 @@ class DatabaseEngine {
     this.data = {
       products: [],
       orders: [],
+      customers: [],
       siteContent: {},
       collections: []
     };
@@ -36,6 +38,9 @@ class DatabaseEngine {
         }
         if (!this.data.orders) {
           this.data.orders = [...defaultOrders];
+        }
+        if (!this.data.customers) {
+          this.data.customers = [];
         }
       } else {
         // First run seed
@@ -225,6 +230,7 @@ class DatabaseEngine {
     const newOrder = {
       id,
       order_number,
+      customer_id: orderPayload.customer_id || (this.getCustomerByEmail(orderPayload.customer_email)?.id) || null,
       customer_name: orderPayload.customer_name,
       customer_email: orderPayload.customer_email,
       customer_phone: orderPayload.customer_phone,
@@ -335,6 +341,110 @@ class DatabaseEngine {
       statusCounts,
       recentOrders: orders.slice(0, 5)
     };
+  }
+
+  // --- CUSTOMER AUTH & PROFILES ---
+  _hashPassword(password, salt) {
+    return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  }
+
+  getCustomerByEmail(email) {
+    if (!email) return null;
+    const clean = String(email).trim().toLowerCase();
+    return (this.data.customers || []).find(c => c.email && c.email.toLowerCase() === clean) || null;
+  }
+
+  getCustomerById(id) {
+    if (!id) return null;
+    const customer = (this.data.customers || []).find(c => c.id === id);
+    if (!customer) return null;
+    const { password_hash, salt, ...safeCustomer } = customer;
+    return safeCustomer;
+  }
+
+  registerCustomer({ name, email, password, phone = '', address = '', city = 'Bengaluru', state = 'Karnataka', pincode = '560001' }) {
+    if (!this.data.customers) this.data.customers = [];
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    if (this.getCustomerByEmail(cleanEmail)) {
+      throw new Error('An account with this email address already exists. Please sign in instead.');
+    }
+
+    if (!password || password.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const password_hash = this._hashPassword(password, salt);
+
+    const newCustomer = {
+      id: `cust-${Date.now()}`,
+      name: String(name).trim(),
+      email: cleanEmail,
+      phone: String(phone).trim(),
+      shipping_address: String(address).trim(),
+      city: String(city).trim(),
+      state: String(state).trim(),
+      pincode: String(pincode).trim(),
+      password_hash,
+      salt,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    this.data.customers.push(newCustomer);
+    this.save();
+
+    const { password_hash: _h, salt: _s, ...safeCustomer } = newCustomer;
+    return safeCustomer;
+  }
+
+  authenticateCustomer(email, password) {
+    if (!email || !password) {
+      throw new Error('Email and password are required.');
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const customer = (this.data.customers || []).find(c => c.email && c.email.toLowerCase() === cleanEmail);
+
+    if (!customer) {
+      throw new Error('No account found with this email. Please check your email or create an account.');
+    }
+
+    const inputHash = this._hashPassword(password, customer.salt);
+    if (inputHash !== customer.password_hash) {
+      throw new Error('Incorrect password. Please verify your credentials and try again.');
+    }
+
+    const { password_hash: _h, salt: _s, ...safeCustomer } = customer;
+    return safeCustomer;
+  }
+
+  updateCustomer(id, updates = {}) {
+    const customer = (this.data.customers || []).find(c => c.id === id);
+    if (!customer) return null;
+
+    if (updates.name) customer.name = String(updates.name).trim();
+    if (updates.phone !== undefined) customer.phone = String(updates.phone).trim();
+    if (updates.shipping_address !== undefined) customer.shipping_address = String(updates.shipping_address).trim();
+    if (updates.city !== undefined) customer.city = String(updates.city).trim();
+    if (updates.state !== undefined) customer.state = String(updates.state).trim();
+    if (updates.pincode !== undefined) customer.pincode = String(updates.pincode).trim();
+    customer.updated_at = new Date().toISOString();
+
+    this.save();
+
+    const { password_hash: _h, salt: _s, ...safeCustomer } = customer;
+    return safeCustomer;
+  }
+
+  getCustomerOrders(emailOrCustomerId) {
+    if (!emailOrCustomerId) return [];
+    const term = String(emailOrCustomerId).trim().toLowerCase();
+    return (this.data.orders || []).filter(order => 
+      (order.customer_id && order.customer_id.toLowerCase() === term) ||
+      (order.customer_email && order.customer_email.toLowerCase() === term)
+    );
   }
 }
 

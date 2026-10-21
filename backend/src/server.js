@@ -10,6 +10,7 @@ import contentRoutes from './routes/content.js';
 import analyticsRoutes from './routes/analytics.js';
 import authRoutes from './routes/auth.js';
 import uploadRoutes from './routes/upload.js';
+import customerRoutes from './routes/customer.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/content', contentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/customer', customerRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

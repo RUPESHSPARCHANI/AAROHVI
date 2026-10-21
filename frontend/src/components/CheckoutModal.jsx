@@ -1,22 +1,39 @@
-import React, { useState } from 'react';
-import { X, CheckCircle, ShieldCheck, ArrowRight, Truck, QrCode, CreditCard, Banknote, Landmark } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle, ShieldCheck, ArrowRight, Truck, QrCode, CreditCard, Banknote, Landmark, UserCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { api } from '../api/client';
 
 export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
   const { cartItems, subtotal, shippingFee, total, clearCart } = useCart();
+  const { customer, openAuthModal, fetchCustomerOrders } = useCustomerAuth();
 
   const [formData, setFormData] = useState({
-    customer_name: '',
-    customer_email: '',
-    customer_phone: '',
-    shipping_address: '',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560001',
+    customer_name: customer?.name || '',
+    customer_email: customer?.email || '',
+    customer_phone: customer?.phone || '',
+    shipping_address: customer?.shipping_address || '',
+    city: customer?.city || 'Bengaluru',
+    state: customer?.state || 'Karnataka',
+    pincode: customer?.pincode || '560001',
     payment_method: 'UPI (Google Pay / PhonePe / QR)',
     notes: ''
   });
+
+  useEffect(() => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        customer_name: customer.name || prev.customer_name,
+        customer_email: customer.email || prev.customer_email,
+        customer_phone: customer.phone || prev.customer_phone,
+        shipping_address: customer.shipping_address || prev.shipping_address,
+        city: customer.city || prev.city,
+        state: customer.state || prev.state,
+        pincode: customer.pincode || prev.pincode
+      }));
+    }
+  }, [customer, isOpen]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,6 +58,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
     try {
       const orderPayload = {
         ...formData,
+        customer_id: customer?.id || null,
         items: cartItems.map(item => ({
           id: item.id,
           name: item.name,
@@ -55,6 +73,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
       if (res.success && res.data) {
         setConfirmedOrder(res.data);
         clearCart();
+        if (customer) fetchCustomerOrders();
         if (onOrderPlaced) onOrderPlaced(res.data);
       } else {
         setErrorMsg(res.message || 'Failed to process order. Please try again.');
@@ -150,12 +169,35 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem' }}>
+              <div className="checkout-layout-grid">
                 {/* Left Column: Shipping & Contact */}
                 <div>
-                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: 'var(--color-warm-ivory)', marginBottom: '1.25rem', borderBottom: '1px solid var(--color-subtle-border)', paddingBottom: '0.5rem' }}>
-                    1. Shipping Information
-                  </h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--color-subtle-border)', paddingBottom: '0.5rem' }}>
+                    <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: 'var(--color-warm-ivory)', margin: 0 }}>
+                      1. Shipping Information
+                    </h4>
+                    {customer ? (
+                      <span style={{ fontSize: '0.75rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <UserCheck size={13} />
+                        <span>Autofilled for {customer.name.split(' ')[0]}</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openAuthModal('login')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-muted-champagne)',
+                          fontSize: '0.76rem',
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Sign in for 1-Click Fill
+                      </button>
+                    )}
+                  </div>
 
                   <div className="checkout-form-grid" style={{ marginBottom: '1.2rem' }}>
                     <div className="form-group">
