@@ -16,11 +16,10 @@
       "styling_tip": "",
       "stock": 10,
       "in_stock": 1,
-      "image_url": "/uploads/1792600707241-WhatsApp_Image_2026-10-20_at_17.48.27.jpeg",
+      "image_url": "/images/hasli_choker.jpg",
       "gallery": [
         "/images/hasli_choker.jpg",
-        "/images/hero_banner.jpg",
-        "/uploads/1792600707241-WhatsApp_Image_2026-10-20_at_17.48.27.jpeg"
+        "/images/hero_banner.jpg"
       ],
       "variants": [
         {
@@ -32,7 +31,7 @@
       "is_featured": 0,
       "is_bestseller": 0,
       "created_at": "2026-10-21T16:29:09.480Z",
-      "updated_at": "2026-10-21T16:38:35.530Z"
+      "updated_at": "2026-10-21T16:46:44.796Z"
     },
     {
       "id": "prod-1",
