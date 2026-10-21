@@ -48,6 +48,37 @@ export const api = {
     return res.json();
   },
 
+  // Cloudinary Image Uploads
+  async uploadImage(file, token) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const res = await fetch(`${API_BASE_URL}/upload/single`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    return res.json();
+  },
+
+  async uploadMultipleImages(files, token) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('images', files[i]);
+    }
+
+    const res = await fetch(`${API_BASE_URL}/upload/multiple`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    return res.json();
+  },
+
   // Orders
   async createOrder(orderData) {
     const res = await fetch(`${API_BASE_URL}/orders`, {

@@ -1,6 +1,39 @@
 {
   "products": [
     {
+      "id": "prod-1792600149480",
+      "slug": "navratna-hasli-torque-400",
+      "name": "Navratna Hasli Torque",
+      "tagline": "",
+      "price": 699,
+      "original_price": null,
+      "category": "Necklaces & Haslis",
+      "material": "Oxidised Silver Alloy",
+      "finish": "Antique Patina",
+      "dimensions": "Standard Size",
+      "care_instructions": "Store in airtight cloth pouch.",
+      "story": "",
+      "styling_tip": "",
+      "stock": 10,
+      "in_stock": 0,
+      "image_url": "/images/hasli_choker.jpg",
+      "gallery": [
+        "/images/hasli_choker.jpg",
+        "/images/hero_banner.jpg"
+      ],
+      "variants": [
+        {
+          "id": "v1",
+          "name": "Standard Fit",
+          "stock": 10
+        }
+      ],
+      "is_featured": 0,
+      "is_bestseller": 0,
+      "created_at": "2026-10-21T16:29:09.480Z",
+      "updated_at": "2026-10-21T16:29:09.480Z"
+    },
+    {
       "id": "prod-1",
       "name": "Surya Rekha Sculptural Ring",
       "slug": "surya-rekha-sculptural-ring",

@@ -17,7 +17,11 @@ import {
   AlertTriangle,
   Save,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  Image as ImageIcon,
+  Star,
+  Cloud
 } from 'lucide-react';
 import { useManager } from '../../context/ManagerContext';
 import { api } from '../../api/client';
@@ -37,6 +41,10 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
   // Modals
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [customImageUrl, setCustomImageUrl] = useState('');
+
   const [productForm, setProductForm] = useState({
     name: '',
     tagline: '',
@@ -51,6 +59,7 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
     styling_tip: '',
     stock: 15,
     image_url: '/images/ring_sculptural.jpg',
+    gallery: ['/images/ring_sculptural.jpg'],
     is_featured: 1,
     is_bestseller: 0
   });
@@ -61,6 +70,72 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
     status: '',
     tracking_number: ''
   });
+
+  // Cloudinary Multi-Image Upload Handler
+  const handleMultipleFilesUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadError('');
+
+    try {
+      const res = await api.uploadMultipleImages(files, token);
+      if (res.success && res.data) {
+        const newUrls = res.data.map(item => item.url);
+        setProductForm(prev => {
+          const updatedGallery = [...(prev.gallery || []), ...newUrls];
+          return {
+            ...prev,
+            gallery: updatedGallery,
+            image_url: prev.image_url || updatedGallery[0]
+          };
+        });
+        showToast(`Uploaded ${newUrls.length} image(s) to Cloudinary!`);
+      } else {
+        setUploadError(res.message || 'Image upload failed.');
+      }
+    } catch (err) {
+      setUploadError(err.message || 'Error uploading to Cloudinary.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSetPrimaryImage = (url) => {
+    setProductForm(prev => ({ ...prev, image_url: url }));
+    showToast('Cover image updated');
+  };
+
+  const handleRemoveGalleryImage = (indexToRemove) => {
+    setProductForm(prev => {
+      const updatedGallery = (prev.gallery || []).filter((_, i) => i !== indexToRemove);
+      const newImageUrl = prev.image_url === (prev.gallery || [])[indexToRemove]
+        ? (updatedGallery[0] || '')
+        : prev.image_url;
+      return {
+        ...prev,
+        gallery: updatedGallery,
+        image_url: newImageUrl
+      };
+    });
+  };
+
+  const handleAddManualUrl = () => {
+    if (!customImageUrl.trim()) return;
+    const url = customImageUrl.trim();
+    setProductForm(prev => {
+      const updatedGallery = [...(prev.gallery || []), url];
+      return {
+        ...prev,
+        gallery: updatedGallery,
+        image_url: prev.image_url || url
+      };
+    });
+    setCustomImageUrl('');
+    showToast('Image added to gallery');
+  };
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -121,6 +196,8 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
 
   const openAddProductModal = () => {
     setEditingProduct(null);
+    setUploadError('');
+    setCustomImageUrl('');
     setProductForm({
       name: '',
       tagline: '',
@@ -135,6 +212,7 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
       styling_tip: '',
       stock: 15,
       image_url: '/images/ring_sculptural.jpg',
+      gallery: ['/images/ring_sculptural.jpg'],
       is_featured: 1,
       is_bestseller: 0
     });
@@ -143,6 +221,12 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
 
   const openEditProductModal = (product) => {
     setEditingProduct(product);
+    setUploadError('');
+    setCustomImageUrl('');
+    const resolvedGallery = Array.isArray(product.gallery) && product.gallery.length > 0
+      ? product.gallery
+      : [product.image_url || '/images/ring_sculptural.jpg'];
+
     setProductForm({
       name: product.name,
       tagline: product.tagline || '',
@@ -156,7 +240,8 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
       story: product.story || '',
       styling_tip: product.styling_tip || '',
       stock: product.stock,
-      image_url: product.image_url,
+      image_url: product.image_url || resolvedGallery[0],
+      gallery: resolvedGallery,
       is_featured: product.is_featured || 0,
       is_bestseller: product.is_bestseller || 0
     });
@@ -922,31 +1007,164 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
                 </div>
               </div>
 
-              <div className="checkout-form-grid" style={{ marginBottom: '1.2rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Initial Stock Available *</label>
-                  <input 
-                    type="number" 
-                    className="form-control" 
-                    value={productForm.stock} 
-                    onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })} 
-                    required 
-                  />
+              <div className="form-group" style={{ marginBottom: '1.4rem' }}>
+                <label className="form-label">Initial Stock Available *</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  value={productForm.stock} 
+                  onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })} 
+                  style={{ maxWidth: '240px' }}
+                  required 
+                />
+              </div>
+
+              {/* CLOUDINARY MULTI-IMAGE UPLOAD & GALLERY SECTION */}
+              <div style={{ backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', padding: '1.4rem', marginBottom: '1.4rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Cloud size={17} color="var(--color-muted-champagne)" />
+                    <span style={{ fontSize: '0.82rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-warm-ivory)', fontWeight: 600 }}>
+                      Product Gallery & Cloudinary Storage
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--color-muted-champagne)' }}>
+                    {productForm.gallery?.length || 0} photo(s) in gallery
+                  </span>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Curated Photograph Path / URL</label>
-                  <select 
+
+                {uploadError && (
+                  <div style={{ backgroundColor: 'rgba(140, 38, 53, 0.25)', border: '1px solid var(--color-ruby-red)', padding: '0.6rem 0.9rem', borderRadius: '3px', color: '#f87171', fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                    {uploadError}
+                  </div>
+                )}
+
+                {/* Drag & Drop / File Input Box */}
+                <label 
+                  htmlFor="cloudinary-multi-upload"
+                  className={`upload-dropzone ${isUploading ? 'dragging' : ''}`}
+                  style={{ display: 'block' }}
+                >
+                  <input 
+                    type="file"
+                    id="cloudinary-multi-upload"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                    onChange={handleMultipleFilesUpload}
+                    disabled={isUploading}
+                    style={{ display: 'none' }}
+                  />
+
+                  {isUploading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', color: 'var(--color-muted-champagne)' }}>
+                      <RefreshCw size={24} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                      <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Uploading image(s) to Cloudinary CDN...</span>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--color-warm-ivory-dim)' }}>Compressing and generating responsive formats</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+                      <Upload size={24} color="var(--color-muted-champagne)" />
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-warm-ivory)' }}>
+                        Click to Upload Multiple Photos to Cloudinary
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--color-warm-ivory-dim)' }}>
+                        Select 1 or more images (JPEG, PNG, WEBP, AVIF · Max 10MB each)
+                      </div>
+                    </div>
+                  )}
+                </label>
+
+                {/* Alternative: Add Image URL or Sample Preset */}
+                <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                  <input 
+                    type="text"
+                    placeholder="Or paste external Cloudinary / HTTPS image URL..."
                     className="form-control"
-                    value={productForm.image_url}
-                    onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                    style={{ flexGrow: 1, minWidth: '220px', fontSize: '0.82rem', padding: '0.5rem 0.8rem' }}
+                    value={customImageUrl}
+                    onChange={(e) => setCustomImageUrl(e.target.value)}
+                  />
+                  <button 
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: '0.5rem 1rem', fontSize: '0.76rem' }}
+                    onClick={handleAddManualUrl}
                   >
-                    <option value="/images/ring_sculptural.jpg">Sculptural Ring (Obsidian Patina)</option>
+                    Add URL
+                  </button>
+
+                  <select 
+                    className="select-dropdown"
+                    style={{ fontSize: '0.76rem', padding: '0.5rem 0.8rem' }}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setProductForm(prev => {
+                          const updated = [...(prev.gallery || []), e.target.value];
+                          return { ...prev, gallery: updated, image_url: prev.image_url || e.target.value };
+                        });
+                        e.target.value = '';
+                      }
+                    }}
+                  >
+                    <option value="">+ Add Brand Preset Image</option>
+                    <option value="/images/ring_sculptural.jpg">Sculptural Ring Preset</option>
                     <option value="/images/earrings_sculptural.jpg">Architectural Drop Earrings</option>
                     <option value="/images/cuff_bracelet.jpg">Tribal Engraved Cuff</option>
                     <option value="/images/hasli_choker.jpg">Asymmetric Hasli Choker</option>
-                    <option value="/images/hero_banner.jpg">Editorial Adornments Suite</option>
+                    <option value="/images/hero_banner.jpg">Editorial Suite Banner</option>
                   </select>
                 </div>
+
+                {/* Gallery Previews Grid */}
+                {productForm.gallery && productForm.gallery.length > 0 && (
+                  <div style={{ marginTop: '1.2rem' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--color-warm-ivory-dim)', marginBottom: '0.6rem' }}>
+                      Click <strong>Cover</strong> on any photo to set it as the primary thumbnail:
+                    </div>
+
+                    <div className="gallery-grid">
+                      {productForm.gallery.map((imgUrl, index) => {
+                        const isPrimary = productForm.image_url === imgUrl;
+                        return (
+                          <div 
+                            key={index} 
+                            className={`gallery-thumb-card ${isPrimary ? 'is-primary' : ''}`}
+                          >
+                            <img src={imgUrl} alt={`Product gallery ${index + 1}`} />
+
+                            {isPrimary && (
+                              <div className="primary-indicator-badge">
+                                <Star size={10} fill="currentColor" /> Cover
+                              </div>
+                            )}
+
+                            <div className="gallery-thumb-actions">
+                              {!isPrimary && (
+                                <button 
+                                  type="button"
+                                  className="gallery-action-btn"
+                                  onClick={() => handleSetPrimaryImage(imgUrl)}
+                                  title="Set as primary cover photo"
+                                >
+                                  Cover
+                                </button>
+                              )}
+                              <button 
+                                type="button"
+                                className="gallery-action-btn"
+                                style={{ color: '#f87171' }}
+                                onClick={() => handleRemoveGalleryImage(index)}
+                                title="Remove photo"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="checkout-form-grid" style={{ marginBottom: '1.2rem' }}>

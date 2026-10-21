@@ -1,9 +1,10 @@
 import express from 'express';
 import { db } from '../../../database/db.js';
+import { requireManagerAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET all products with filtering & search
+// GET all products with filtering & search (Public)
 router.get('/', (req, res) => {
   try {
     const { category, search, minPrice, maxPrice, sort } = req.query;
@@ -14,7 +15,7 @@ router.get('/', (req, res) => {
   }
 });
 
-// GET product by ID or slug
+// GET product by ID or slug (Public)
 router.get('/:id', (req, res) => {
   try {
     const product = db.getProductById(req.params.id);
@@ -27,24 +28,52 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// POST create product (Manager)
-router.post('/', (req, res) => {
+// POST create product (Protected with Manager Auth)
+router.post('/', requireManagerAuth, (req, res) => {
   try {
-    const { name, price } = req.body;
+    const { name, price, gallery, image_url } = req.body;
     if (!name || !price) {
       return res.status(400).json({ success: false, message: 'Name and price are required' });
     }
-    const newProduct = db.createProduct(req.body);
+
+    // Ensure gallery and image_url harmony
+    let resolvedGallery = Array.isArray(gallery) && gallery.length > 0 ? gallery : [];
+    let resolvedImageUrl = image_url;
+
+    if (!resolvedImageUrl && resolvedGallery.length > 0) {
+      resolvedImageUrl = resolvedGallery[0];
+    }
+    if (resolvedImageUrl && !resolvedGallery.includes(resolvedImageUrl)) {
+      resolvedGallery.unshift(resolvedImageUrl);
+    }
+
+    const productPayload = {
+      ...req.body,
+      image_url: resolvedImageUrl || '/images/ring_sculptural.jpg',
+      gallery: resolvedGallery.length > 0 ? resolvedGallery : [resolvedImageUrl || '/images/ring_sculptural.jpg']
+    };
+
+    const newProduct = db.createProduct(productPayload);
     res.status(201).json({ success: true, message: 'Product created successfully', data: newProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// PUT update product (Manager)
-router.put('/:id', (req, res) => {
+// PUT update product (Protected with Manager Auth)
+router.put('/:id', requireManagerAuth, (req, res) => {
   try {
-    const updated = db.updateProduct(req.params.id, req.body);
+    const { gallery, image_url } = req.body;
+    const updates = { ...req.body };
+
+    if (Array.isArray(gallery)) {
+      updates.gallery = gallery;
+      if (!image_url && gallery.length > 0) {
+        updates.image_url = gallery[0];
+      }
+    }
+
+    const updated = db.updateProduct(req.params.id, updates);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -54,8 +83,8 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// DELETE product (Manager)
-router.delete('/:id', (req, res) => {
+// DELETE product (Protected with Manager Auth)
+router.delete('/:id', requireManagerAuth, (req, res) => {
   try {
     const deleted = db.deleteProduct(req.params.id);
     if (!deleted) {
