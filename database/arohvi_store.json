@@ -14,7 +14,7 @@
       "care_instructions": "Store in airtight cloth pouch.",
       "story": "",
       "styling_tip": "",
-      "stock": 9,
+      "stock": 8,
       "in_stock": 1,
       "image_url": "/images/hasli_choker.jpg",
       "gallery": [
@@ -31,7 +31,7 @@
       "is_featured": 0,
       "is_bestseller": 0,
       "created_at": "2026-10-21T16:29:09.480Z",
-      "updated_at": "2026-10-21T17:37:16.021Z"
+      "updated_at": "2026-10-21T17:50:28.401Z"
     },
     {
       "id": "prod-1",
@@ -321,6 +321,20 @@
       "salt": "d8cdc9bfe4a4410643d35dba22ed3323",
       "created_at": "2026-10-21T17:37:15.962Z",
       "updated_at": "2026-10-21T17:37:16.010Z"
+    },
+    {
+      "id": "cust-1792605028353",
+      "name": "Priya Sundaram",
+      "email": "priya_1792605028249@example.com",
+      "phone": "+91 99999 88888",
+      "shipping_address": "Flat 4B, Emerald Heights, MG Road",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "pincode": "560025",
+      "password_hash": "2ff98e7516cbbb82b7ba9c81520a3af8588d2b85452606b7712f147d183e8c275d2589123baf660e2552970508a33c1880d1fadfaa2ac2cdd9764800fc4ded73",
+      "salt": "24b292ba6baaa2f7d576d1681938b107",
+      "created_at": "2026-10-21T17:50:28.353Z",
+      "updated_at": "2026-10-21T17:50:28.390Z"
     }
   ]
 }
