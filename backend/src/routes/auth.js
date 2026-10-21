@@ -2,22 +2,32 @@ import express from 'express';
 
 const router = express.Router();
 
-// Manager credentials
-const MANAGER_CREDS = {
-  email: 'tulsi@arohvi.in',
-  username: 'admin',
-  password: 'arohvi2026'
-};
+// Manager credentials configurable via server environment variables
+const getManagerCreds = () => ({
+  email: (process.env.MANAGER_EMAIL || 'tulsi@arohvi.in').toLowerCase(),
+  username: (process.env.MANAGER_USERNAME || 'admin').toLowerCase(),
+  password: process.env.MANAGER_PASSWORD || 'arohvi2026'
+});
 
 router.post('/login', (req, res) => {
   const { identifier, password } = req.body;
+  const creds = getManagerCreds();
+
+  if (!identifier || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email/username and password are required.'
+    });
+  }
+
+  const cleanId = String(identifier).trim().toLowerCase();
 
   if (
-    (identifier === MANAGER_CREDS.email || identifier === MANAGER_CREDS.username) &&
-    password === MANAGER_CREDS.password
+    (cleanId === creds.email || cleanId === creds.username) &&
+    password === creds.password
   ) {
-    // Generate simple token for session
-    const token = 'arh_tok_' + Buffer.from(`${identifier}:${Date.now()}`).toString('base64');
+    // Generate secure session token
+    const token = 'arh_tok_' + Buffer.from(`${cleanId}:${Date.now()}`).toString('base64');
     return res.json({
       success: true,
       message: 'Manager authenticated successfully',
@@ -26,7 +36,7 @@ router.post('/login', (req, res) => {
         manager: {
           name: 'Tulsi Prakash',
           role: 'Founder & Creative Director',
-          email: MANAGER_CREDS.email
+          email: creds.email
         }
       }
     });
@@ -34,7 +44,7 @@ router.post('/login', (req, res) => {
 
   res.status(401).json({
     success: false,
-    message: 'Invalid manager credentials. Use email: tulsi@arohvi.in / password: arohvi2026'
+    message: 'Invalid manager credentials. Please check your login details and try again.'
   });
 });
 

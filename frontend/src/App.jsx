@@ -1,47 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
-import { ManagerProvider, useManager } from './context/ManagerContext';
+import { ManagerProvider } from './context/ManagerContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { CinematicSlideUpReveal } from './components/CinematicSlideUpReveal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { TrackOrderModal } from './components/TrackOrderModal';
-import { ManagerLoginModal } from './components/ManagerLoginModal';
 import { UserHome } from './pages/user/UserHome';
+import { ManagerLogin } from './pages/manager/ManagerLogin';
 import { ManagerDashboard } from './pages/manager/ManagerDashboard';
+import { ProtectedRoute } from './pages/manager/ProtectedRoute';
 import { api } from './api/client';
 
-function MainApp() {
-  const { currentView, toggleView, isLoginModalOpen, setIsLoginModalOpen } = useManager();
-
-  const [products, setProducts] = useState([]);
-  const [siteContent, setSiteContent] = useState(null);
+/**
+ * Public Customer Storefront
+ * Completely isolated from manager tools, with no administrative links or icons.
+ */
+function CustomerStore({ products, siteContent, onRefreshData }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isRevealOpen, setIsRevealOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
-  const [loading, setLoading] = useState(true);
-
-  const fetchStoreData = async () => {
-    try {
-      const [prodRes, contentRes] = await Promise.all([
-        api.getProducts(),
-        api.getContent()
-      ]);
-      if (prodRes.success) setProducts(prodRes.data);
-      if (contentRes.success) setSiteContent(contentRes.data);
-    } catch (err) {
-      console.error("Error loading store data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStoreData();
-  }, []);
 
   const handleSelectProduct = (product) => {
     setSelectedProduct(product);
@@ -58,9 +40,6 @@ function MainApp() {
 
   const handleNavigate = (sectionId) => {
     setActiveSection(sectionId);
-    if (currentView === 'manager') {
-      toggleView('store');
-    }
     const el = document.getElementById(sectionId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
@@ -69,35 +48,27 @@ function MainApp() {
 
   return (
     <div className="app-container">
-      {/* If current view is Manager side, render ManagerDashboard */}
-      {currentView === 'manager' ? (
-        <ManagerDashboard 
-          onSwitchToStore={() => toggleView('store')}
-          onRefreshProducts={fetchStoreData}
-        />
-      ) : (
-        /* Otherwise render the User Storefront */
-        <>
-          <Navbar 
-            announcement={siteContent?.announcement}
-            onNavigate={handleNavigate}
-            activeSection={activeSection}
-            onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-          />
+      {/* Public Navbar (strictly customer-facing) */}
+      <Navbar 
+        announcement={siteContent?.announcement}
+        onNavigate={handleNavigate}
+        activeSection={activeSection}
+        onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+      />
 
-          <UserHome 
-            siteContent={siteContent}
-            products={products}
-            onSelectProduct={handleSelectProduct}
-            onNavigateToCatalog={() => handleNavigate('catalog')}
-            onNavigateToStory={() => handleNavigate('story')}
-          />
+      {/* Main Public Home */}
+      <UserHome 
+        siteContent={siteContent}
+        products={products}
+        onSelectProduct={handleSelectProduct}
+        onNavigateToCatalog={() => handleNavigate('catalog')}
+        onNavigateToStory={() => handleNavigate('story')}
+      />
 
-          <Footer onNavigate={handleNavigate} />
-        </>
-      )}
+      {/* Footer */}
+      <Footer onNavigate={handleNavigate} />
 
-      {/* SIGNATURE WEBSITE INTERACTION: Cinematic Slide-Up Product Reveal */}
+      {/* Cinematic Slide-Up Product Reveal */}
       <CinematicSlideUpReveal 
         product={selectedProduct}
         isOpen={isRevealOpen}
@@ -105,7 +76,7 @@ function MainApp() {
         onBuyNow={handleBuyNow}
       />
 
-      {/* Slide-out Cart Drawer */}
+      {/* Customer Cart Drawer */}
       <CartDrawer 
         onProceedToCheckout={() => setIsCheckoutOpen(true)}
       />
@@ -114,7 +85,7 @@ function MainApp() {
       <CheckoutModal 
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
-        onOrderPlaced={() => fetchStoreData()}
+        onOrderPlaced={onRefreshData}
       />
 
       {/* Track Order Modal */}
@@ -122,21 +93,77 @@ function MainApp() {
         isOpen={isTrackOrderOpen}
         onClose={() => setIsTrackOrderOpen(false)}
       />
-
-      {/* Manager Login Modal */}
-      <ManagerLoginModal 
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-      />
     </div>
   );
 }
 
 export default function App() {
+  const [products, setProducts] = useState([]);
+  const [siteContent, setSiteContent] = useState(null);
+
+  const fetchStoreData = async () => {
+    try {
+      const [prodRes, contentRes] = await Promise.all([
+        api.getProducts(),
+        api.getContent()
+      ]);
+      if (prodRes.success) setProducts(prodRes.data);
+      if (contentRes.success) setSiteContent(contentRes.data);
+    } catch (err) {
+      console.error('Error loading store data:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStoreData();
+  }, []);
+
   return (
     <CartProvider>
       <ManagerProvider>
-        <MainApp />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Customer Website */}
+            <Route 
+              path="/" 
+              element={
+                <CustomerStore 
+                  products={products} 
+                  siteContent={siteContent} 
+                  onRefreshData={fetchStoreData} 
+                />
+              } 
+            />
+
+            {/* Direct Manager Login */}
+            <Route 
+              path="/manager/login" 
+              element={<ManagerLogin />} 
+            />
+
+            {/* Private Protected Manager Dashboard */}
+            <Route 
+              path="/manager/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <ManagerDashboard onRefreshProducts={fetchStoreData} />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Convenience alias for /manager -> /manager/dashboard */}
+            <Route 
+              path="/manager" 
+              element={<Navigate to="/manager/dashboard" replace />} 
+            />
+
+            {/* Fallback unknown paths to Customer Home */}
+            <Route 
+              path="*" 
+              element={<Navigate to="/" replace />} 
+            />
+          </Routes>
+        </BrowserRouter>
       </ManagerProvider>
     </CartProvider>
   );

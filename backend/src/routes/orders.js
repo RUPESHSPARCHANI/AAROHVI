@@ -1,10 +1,11 @@
 import express from 'express';
 import { db } from '../../../database/db.js';
+import { requireManagerAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET all orders (Manager)
-router.get('/', (req, res) => {
+// GET all orders (Protected with Manager Auth)
+router.get('/', requireManagerAuth, (req, res) => {
   try {
     const { status } = req.query;
     const orders = db.getOrders(status);
@@ -14,7 +15,7 @@ router.get('/', (req, res) => {
   }
 });
 
-// GET single order by ID or order_number
+// GET single order by ID or order_number (Public for customer order tracking)
 router.get('/:id', (req, res) => {
   try {
     const order = db.getOrderById(req.params.id);
@@ -27,7 +28,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// POST checkout create new order (User)
+// POST checkout create new order (Public for customer checkout)
 router.post('/', (req, res) => {
   try {
     const { customer_name, customer_email, customer_phone, shipping_address, city, state, pincode, items } = req.body;
@@ -50,8 +51,8 @@ router.post('/', (req, res) => {
   }
 });
 
-// PUT update order status & tracking (Manager)
-router.put('/:id/status', (req, res) => {
+// PUT update order status & tracking (Protected with Manager Auth)
+router.put('/:id/status', requireManagerAuth, (req, res) => {
   try {
     const { order_status, tracking_number } = req.body;
     const updatedOrder = db.updateOrderStatus(req.params.id, { order_status, tracking_number });

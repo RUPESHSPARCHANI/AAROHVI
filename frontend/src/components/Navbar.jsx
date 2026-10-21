@@ -1,11 +1,9 @@
 import React from 'react';
-import { ShoppingBag, Search, ShieldCheck, Sparkles, UserCheck } from 'lucide-react';
+import { ShoppingBag } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { useManager } from '../context/ManagerContext';
 
 export const Navbar = ({ announcement, onNavigate, activeSection, onOpenTrackOrder }) => {
   const { totalItemCount, setIsCartOpen } = useCart();
-  const { manager, currentView, toggleView, setIsLoginModalOpen } = useManager();
 
   return (
     <>
@@ -84,29 +82,8 @@ export const Navbar = ({ announcement, onNavigate, activeSection, onOpenTrackOrd
             </li>
           </ul>
 
-          {/* Action Icons & Manager Portal Switcher */}
+          {/* Action Icons */}
           <div className="nav-actions">
-            {/* Manager Switcher Button */}
-            {manager ? (
-              <button 
-                className="manager-switcher-btn"
-                onClick={() => toggleView(currentView === 'manager' ? 'store' : 'manager')}
-                title="Switch between Store and Admin Dashboard"
-              >
-                <UserCheck size={14} />
-                <span>{currentView === 'manager' ? 'View Store' : 'Manager Hub'}</span>
-              </button>
-            ) : (
-              <button 
-                className="manager-switcher-btn"
-                onClick={() => setIsLoginModalOpen(true)}
-                title="Founder / Manager Login"
-              >
-                <ShieldCheck size={14} />
-                <span>Manager</span>
-              </button>
-            )}
-
             {/* Shopping Bag Trigger */}
             <button 
               className="icon-btn" 

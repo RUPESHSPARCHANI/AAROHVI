@@ -25,9 +25,11 @@ import {
 } from 'lucide-react';
 import { useManager } from '../../context/ManagerContext';
 import { api } from '../../api/client';
+import { useNavigate } from 'react-router-dom';
 
 export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
   const { manager, token, logout } = useManager();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [analytics, setAnalytics] = useState(null);
@@ -333,7 +335,10 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
           <button 
             className="btn-secondary"
             style={{ padding: '0.55rem 1.1rem', fontSize: '0.78rem' }}
-            onClick={onSwitchToStore}
+            onClick={() => {
+              if (onSwitchToStore) onSwitchToStore();
+              navigate('/');
+            }}
           >
             <ExternalLink size={14} />
             <span>View Live Store</span>
@@ -342,7 +347,10 @@ export const ManagerDashboard = ({ onSwitchToStore, onRefreshProducts }) => {
           <button 
             className="btn-secondary"
             style={{ padding: '0.55rem 1rem', fontSize: '0.78rem', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-            onClick={logout}
+            onClick={() => {
+              logout();
+              navigate('/manager/login');
+            }}
           >
             <LogOut size={14} />
             <span>Sign Out</span>
