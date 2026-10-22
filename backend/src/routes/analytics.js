@@ -5,9 +5,9 @@ import { requireManagerAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET store analytics (Protected with Manager Auth)
-router.get('/', requireManagerAuth, (req, res) => {
+router.get('/', requireManagerAuth, async (req, res) => {
   try {
-    const stats = db.getAnalytics();
+    const stats = await db.getAnalytics();
     res.json({ success: true, data: stats });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

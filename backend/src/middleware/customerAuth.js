@@ -4,7 +4,7 @@ import { db } from '../../../database/db.js';
  * Server-Side Authentication Middleware for Customers
  * Validates customer Bearer tokens (arh_cust_...)
  */
-export const requireCustomerAuth = (req, res, next) => {
+export const requireCustomerAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -35,7 +35,7 @@ export const requireCustomerAuth = (req, res, next) => {
       });
     }
 
-    const customer = db.getCustomerById(customerId);
+    const customer = await db.getCustomerById(customerId);
     if (!customer) {
       return res.status(401).json({
         success: false,

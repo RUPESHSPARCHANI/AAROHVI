@@ -15,7 +15,7 @@ const generateCustomerToken = (customer) => {
  * POST /api/customer/register
  * Customer Sign-Up
  */
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone, address, city, state, pincode } = req.body;
 
@@ -26,7 +26,7 @@ router.post('/register', (req, res) => {
       });
     }
 
-    const customer = db.registerCustomer({
+    const customer = await db.registerCustomer({
       name,
       email,
       password,
@@ -59,7 +59,7 @@ router.post('/register', (req, res) => {
  * POST /api/customer/login
  * Customer Sign-In
  */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -70,7 +70,7 @@ router.post('/login', (req, res) => {
       });
     }
 
-    const customer = db.authenticateCustomer(email, password);
+    const customer = await db.authenticateCustomer(email, password);
     const token = generateCustomerToken(customer);
 
     res.json({
@@ -93,11 +93,12 @@ router.post('/login', (req, res) => {
  * GET /api/customer/profile
  * Get current customer profile (Protected)
  */
-router.get('/profile', requireCustomerAuth, (req, res) => {
+router.get('/profile', requireCustomerAuth, async (req, res) => {
   try {
+    const freshProfile = await db.getCustomerById(req.customer.id);
     res.json({
       success: true,
-      data: req.customer
+      data: freshProfile || req.customer
     });
   } catch (error) {
     res.status(500).json({
@@ -111,9 +112,9 @@ router.get('/profile', requireCustomerAuth, (req, res) => {
  * PUT /api/customer/profile
  * Update customer details and saved shipping address (Protected)
  */
-router.put('/profile', requireCustomerAuth, (req, res) => {
+router.put('/profile', requireCustomerAuth, async (req, res) => {
   try {
-    const updated = db.updateCustomer(req.customer.id, req.body);
+    const updated = await db.updateCustomer(req.customer.id, req.body);
     if (!updated) {
       return res.status(404).json({
         success: false,
@@ -138,9 +139,9 @@ router.put('/profile', requireCustomerAuth, (req, res) => {
  * GET /api/customer/orders
  * Get all past orders placed by this customer (Protected)
  */
-router.get('/orders', requireCustomerAuth, (req, res) => {
+router.get('/orders', requireCustomerAuth, async (req, res) => {
   try {
-    const orders = db.getCustomerOrders(req.customer.email);
+    const orders = await db.getCustomerOrders(req.customer.email);
     res.json({
       success: true,
       count: orders.length,

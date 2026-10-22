@@ -7,10 +7,10 @@ import { sendOrderConfirmationEmail } from '../services/emailService.js';
 const router = express.Router();
 
 // GET all orders (Protected with Manager Auth)
-router.get('/', requireManagerAuth, (req, res) => {
+router.get('/', requireManagerAuth, async (req, res) => {
   try {
     const { status } = req.query;
-    const orders = db.getOrders(status);
+    const orders = await db.getOrders(status);
     res.json({ success: true, count: orders.length, data: orders });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -18,9 +18,9 @@ router.get('/', requireManagerAuth, (req, res) => {
 });
 
 // GET single order by ID or order_number (Public for customer order tracking)
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const order = db.getOrderById(req.params.id);
+    const order = await db.getOrderById(req.params.id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -73,7 +73,7 @@ router.post('/', requireCustomerAuth, async (req, res) => {
       payment_method: payment_method || 'Cash on Delivery (COD)'
     };
 
-    const order = db.createOrder(orderPayload);
+    const order = await db.createOrder(orderPayload);
 
     // If Cash on Delivery, send automatic confirmation email immediately
     if (order.payment_method === 'Cash on Delivery (COD)') {
@@ -96,7 +96,7 @@ router.post('/', requireCustomerAuth, async (req, res) => {
  * PUT /api/orders/:id/status
  * Update order status, fulfillment, courier & tracking (Protected with Manager Auth)
  */
-router.put('/:id/status', requireManagerAuth, (req, res) => {
+router.put('/:id/status', requireManagerAuth, async (req, res) => {
   try {
     const { 
       order_status, 
@@ -109,7 +109,7 @@ router.put('/:id/status', requireManagerAuth, (req, res) => {
       notes 
     } = req.body;
 
-    const updatedOrder = db.updateOrderStatus(req.params.id, {
+    const updatedOrder = await db.updateOrderStatus(req.params.id, {
       order_status,
       payment_status,
       courier_name,

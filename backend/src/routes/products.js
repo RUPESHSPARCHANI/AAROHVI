@@ -5,10 +5,10 @@ import { requireManagerAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET all products with filtering & search (Public)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category, search, minPrice, maxPrice, sort } = req.query;
-    const products = db.getProducts({ category, search, minPrice, maxPrice, sort });
+    const products = await db.getProducts({ category, search, minPrice, maxPrice, sort });
     res.json({ success: true, count: products.length, data: products });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -16,9 +16,9 @@ router.get('/', (req, res) => {
 });
 
 // GET product by ID or slug (Public)
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const product = db.getProductById(req.params.id);
+    const product = await db.getProductById(req.params.id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -29,7 +29,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST create product (Protected with Manager Auth)
-router.post('/', requireManagerAuth, (req, res) => {
+router.post('/', requireManagerAuth, async (req, res) => {
   try {
     const { name, price, gallery, image_url } = req.body;
     if (!name || !price) {
@@ -53,7 +53,7 @@ router.post('/', requireManagerAuth, (req, res) => {
       gallery: resolvedGallery.length > 0 ? resolvedGallery : [resolvedImageUrl || '/images/ring_sculptural.jpg']
     };
 
-    const newProduct = db.createProduct(productPayload);
+    const newProduct = await db.createProduct(productPayload);
     res.status(201).json({ success: true, message: 'Product created successfully', data: newProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -61,7 +61,7 @@ router.post('/', requireManagerAuth, (req, res) => {
 });
 
 // PUT update product (Protected with Manager Auth)
-router.put('/:id', requireManagerAuth, (req, res) => {
+router.put('/:id', requireManagerAuth, async (req, res) => {
   try {
     const { gallery, image_url } = req.body;
     const updates = { ...req.body };
@@ -73,7 +73,7 @@ router.put('/:id', requireManagerAuth, (req, res) => {
       }
     }
 
-    const updated = db.updateProduct(req.params.id, updates);
+    const updated = await db.updateProduct(req.params.id, updates);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -84,9 +84,9 @@ router.put('/:id', requireManagerAuth, (req, res) => {
 });
 
 // DELETE product (Protected with Manager Auth)
-router.delete('/:id', requireManagerAuth, (req, res) => {
+router.delete('/:id', requireManagerAuth, async (req, res) => {
   try {
-    const deleted = db.deleteProduct(req.params.id);
+    const deleted = await db.deleteProduct(req.params.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }

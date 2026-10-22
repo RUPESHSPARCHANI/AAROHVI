@@ -5,9 +5,9 @@ import { requireManagerAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET all editable brand content (Hero, Announcement, Story, Policies, Settings) - Public
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const content = db.getSiteContent();
+    const content = await db.getSiteContent();
     res.json({ success: true, data: content });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -15,10 +15,10 @@ router.get('/', (req, res) => {
 });
 
 // PUT update section content (Protected with Manager Auth)
-router.put('/:section', requireManagerAuth, (req, res) => {
+router.put('/:section', requireManagerAuth, async (req, res) => {
   try {
     const { section } = req.params;
-    const updatedContent = db.updateSiteContent(section, req.body);
+    const updatedContent = await db.updateSiteContent(section, req.body);
     res.json({
       success: true,
       message: `Section '${section}' updated successfully`,

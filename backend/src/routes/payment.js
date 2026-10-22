@@ -73,7 +73,7 @@ router.post('/create-order', requireCustomerAuth, async (req, res) => {
     const amountInPaise = Math.round(pricing.total_amount * 100);
 
     // Create preliminary order in database
-    const order = db.createOrder({
+    const order = await db.createOrder({
       customer_id: customer.id,
       customer_name: customer.name,
       customer_email: customer.email,
@@ -123,7 +123,7 @@ router.post('/create-order', requireCustomerAuth, async (req, res) => {
 
     // Attach razorpay order ID to the pending store order
     order.razorpay_order_id = razorpay_order_id;
-    db.save();
+    await db.updateOrderStatus(order.id, { razorpay_order_id });
 
     res.status(201).json({
       success: true,
@@ -162,7 +162,7 @@ router.post('/verify', requireCustomerAuth, async (req, res) => {
     }
 
     // Retrieve order by ID or Razorpay order ID
-    const order = db.getOrderById(order_id || razorpay_order_id);
+    const order = await db.getOrderById(order_id || razorpay_order_id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found for verification.' });
     }
@@ -191,7 +191,7 @@ router.post('/verify', requireCustomerAuth, async (req, res) => {
 
       if (!isSignatureValid) {
         console.error('[Razorpay] Signature mismatch for payment:', razorpay_payment_id);
-        db.updateOrderStatus(order.id, { payment_status: 'Failed', notes: 'Payment signature mismatch during verification' });
+        await db.updateOrderStatus(order.id, { payment_status: 'Failed', notes: 'Payment signature mismatch during verification' });
         return res.status(400).json({ success: false, message: 'Payment verification failed: invalid signature.' });
       }
     } else {
@@ -199,7 +199,7 @@ router.post('/verify', requireCustomerAuth, async (req, res) => {
     }
 
     // Idempotent order payment marking
-    const { alreadyProcessed, order: updatedOrder } = db.markOrderPaid(order.id, {
+    const { alreadyProcessed, order: updatedOrder } = await db.markOrderPaid(order.id, {
       payment_id: razorpay_payment_id,
       razorpay_signature
     });
@@ -231,13 +231,13 @@ router.post('/verify', requireCustomerAuth, async (req, res) => {
  * POST /api/payment/failure
  * Record user payment cancellation or failure
  */
-router.post('/failure', requireCustomerAuth, (req, res) => {
+router.post('/failure', requireCustomerAuth, async (req, res) => {
   try {
     const { order_id, error_code, error_description } = req.body;
-    const order = db.getOrderById(order_id);
+    const order = await db.getOrderById(order_id);
 
     if (order && order.payment_status !== 'Paid') {
-      db.updateOrderStatus(order.id, {
+      await db.updateOrderStatus(order.id, {
         payment_status: 'Failed',
         order_status: 'Cancelled',
         notes: `Payment failed: ${error_code || 'CANCELLED'} - ${error_description || 'Customer closed checkout'}`
@@ -255,7 +255,7 @@ router.post('/failure', requireCustomerAuth, (req, res) => {
  * Razorpay Verified Webhook endpoint
  * Uses raw body HMAC signature verification to reliably confirm payments
  */
-router.post('/webhook', (req, res) => {
+router.post('/webhook', async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
     const webhookSignature = req.headers['x-razorpay-signature'];
@@ -294,9 +294,9 @@ router.post('/webhook', (req, res) => {
       const paymentId = payment?.id;
 
       if (rzpOrderId) {
-        const order = db.getOrderById(rzpOrderId);
+        const order = await db.getOrderById(rzpOrderId);
         if (order) {
-          const { alreadyProcessed, order: paidOrder } = db.markOrderPaid(order.id, {
+          const { alreadyProcessed, order: paidOrder } = await db.markOrderPaid(order.id, {
             payment_id: paymentId,
             razorpay_signature: webhookSignature || 'webhook_verified'
           });
@@ -311,9 +311,9 @@ router.post('/webhook', (req, res) => {
       const payment = payload?.payment?.entity;
       const rzpOrderId = payment?.order_id;
       if (rzpOrderId) {
-        const order = db.getOrderById(rzpOrderId);
+        const order = await db.getOrderById(rzpOrderId);
         if (order && order.payment_status !== 'Paid') {
-          db.updateOrderStatus(order.id, {
+          await db.updateOrderStatus(order.id, {
             payment_status: 'Failed',
             notes: `Webhook payment.failed: ${payment.error_description || 'Payment failed'}`
           });

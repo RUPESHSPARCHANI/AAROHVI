@@ -1,11 +1,13 @@
-// AROHVI Database Engine
-// Deployment-ready: zero external native build dependencies, transactional JSON-backed SQL/Store
-// Persists directly to `database/arohvi_store.json` with auto-seeding
+// AROHVI Universal Database Engine
+// Supports both Supabase Cloud PostgreSQL and Local JSON Storage Engine
+// Seamless automatic switching: when SUPABASE_URL & SUPABASE_KEY are provided,
+// it runs directly against Supabase; otherwise it falls back to local JSON for offline development.
 
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 import { defaultProducts, defaultSiteContent, defaultOrders } from './seedData.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,39 +16,42 @@ const DB_FILE_PATH = path.join(__dirname, 'arohvi_store.json');
 
 class DatabaseEngine {
   constructor() {
-    this.data = {
+    this.localData = {
       products: [],
       orders: [],
       customers: [],
       siteContent: {},
+      emailLogs: [],
       collections: []
     };
-    this.init();
+    this.initLocal();
+    if (isSupabaseConfigured()) {
+      console.log('⚡ [DatabaseEngine] Supabase PostgreSQL Connected: Production Cloud Mode Active');
+    } else {
+      console.log('📁 [DatabaseEngine] Supabase credentials not set: Running in Local JSON Storage Mode');
+    }
   }
 
-  init() {
+  initLocal() {
     try {
       if (fs.existsSync(DB_FILE_PATH)) {
         const raw = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-        this.data = JSON.parse(raw);
-        // Ensure structure integrity
-        if (!this.data.products || this.data.products.length === 0) {
-          this.data.products = [...defaultProducts];
+        this.localData = JSON.parse(raw);
+        if (!this.localData.products || this.localData.products.length === 0) {
+          this.localData.products = [...defaultProducts];
         }
-        if (!this.data.siteContent || Object.keys(this.data.siteContent).length === 0) {
-          this.data.siteContent = { ...defaultSiteContent };
+        if (!this.localData.siteContent || Object.keys(this.localData.siteContent).length === 0) {
+          this.localData.siteContent = { ...defaultSiteContent };
         }
-        if (!this.data.orders) {
-          this.data.orders = [...defaultOrders];
-        }
-        if (!this.data.customers) {
-          this.data.customers = [];
-        }
+        if (!this.localData.orders) this.localData.orders = [...defaultOrders];
+        if (!this.localData.customers) this.localData.customers = [];
+        if (!this.localData.emailLogs) this.localData.emailLogs = [];
       } else {
-        // First run seed
-        this.data = {
+        this.localData = {
           products: [...defaultProducts],
           orders: [...defaultOrders],
+          customers: [],
+          emailLogs: [],
           siteContent: { ...defaultSiteContent },
           collections: [
             { id: "col-1", name: "All Adornments", slug: "all" },
@@ -56,77 +61,139 @@ class DatabaseEngine {
             { id: "col-5", name: "Necklaces & Haslis", slug: "necklaces-haslis" }
           ]
         };
-        this.save();
+        this.saveLocal();
       }
     } catch (err) {
-      console.error("Database init error, falling back to defaults:", err);
-      this.data = {
+      console.error("Local database init error:", err);
+      this.localData = {
         products: [...defaultProducts],
         orders: [...defaultOrders],
+        customers: [],
+        emailLogs: [],
         siteContent: { ...defaultSiteContent },
         collections: []
       };
     }
   }
 
-  save() {
+  saveLocal() {
     try {
-      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(this.data, null, 2), 'utf-8');
+      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(this.localData, null, 2), 'utf-8');
     } catch (err) {
-      console.error("Failed to persist database file:", err);
+      console.error("Failed to persist local database file:", err);
     }
   }
 
-  // --- PRODUCTS ---
-  getProducts(filters = {}) {
-    let list = [...this.data.products];
+  _hashPassword(password, salt) {
+    return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  }
 
+  // ============================================================
+  // PRODUCTS CRUD
+  // ============================================================
+  async getProducts(filters = {}) {
+    if (isSupabaseConfigured() && supabase) {
+      let query = supabase.from('products').select('*');
+
+      if (filters.category && filters.category !== 'all' && filters.category !== 'All') {
+        const cat = filters.category.toLowerCase();
+        if (cat.includes('ring')) query = query.ilike('category', '%ring%');
+        else if (cat.includes('earring')) query = query.ilike('category', '%earring%');
+        else if (cat.includes('cuff') || cat.includes('kada')) query = query.or('category.ilike.%cuff%,category.ilike.%kada%');
+        else if (cat.includes('neck') || cat.includes('hasli')) query = query.or('category.ilike.%neck%,category.ilike.%hasli%');
+        else query = query.eq('category', filters.category);
+      }
+
+      if (filters.search) {
+        const term = `%${filters.search}%`;
+        query = query.or(`name.ilike.${term},tagline.ilike.${term},category.ilike.${term}`);
+      }
+
+      if (filters.minPrice !== undefined) {
+        query = query.gte('price', Number(filters.minPrice));
+      }
+      if (filters.maxPrice !== undefined) {
+        query = query.lte('price', Number(filters.maxPrice));
+      }
+
+      if (filters.sort === 'price_asc') {
+        query = query.order('price', { ascending: true });
+      } else if (filters.sort === 'price_desc') {
+        query = query.order('price', { ascending: false });
+      } else if (filters.sort === 'bestseller') {
+        query = query.order('is_bestseller', { ascending: false }).order('created_at', { ascending: false });
+      } else {
+        query = query.order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('[Supabase getProducts Error]', error);
+        return this.localData.products;
+      }
+      return data || [];
+    }
+
+    // Local Fallback
+    let list = [...this.localData.products];
     if (filters.category && filters.category !== 'all' && filters.category !== 'All') {
-      list = list.filter(p => p.category.toLowerCase() === filters.category.toLowerCase() || 
-        (filters.category.toLowerCase().includes('ring') && p.category.toLowerCase().includes('ring')) ||
-        (filters.category.toLowerCase().includes('earring') && p.category.toLowerCase().includes('earring')) ||
-        (filters.category.toLowerCase().includes('cuff') && p.category.toLowerCase().includes('cuff')) ||
-        (filters.category.toLowerCase().includes('neck') && p.category.toLowerCase().includes('neck'))
-      );
+      const cat = filters.category.toLowerCase();
+      list = list.filter(p => {
+        const pCat = (p.category || '').toLowerCase();
+        if (cat.includes('ring') && pCat.includes('ring')) return true;
+        if (cat.includes('earring') && pCat.includes('earring')) return true;
+        if ((cat.includes('cuff') || cat.includes('kada')) && (pCat.includes('cuff') || pCat.includes('kada'))) return true;
+        if ((cat.includes('neck') || cat.includes('hasli')) && (pCat.includes('neck') || pCat.includes('hasli'))) return true;
+        return pCat === cat;
+      });
     }
 
     if (filters.search) {
       const q = filters.search.toLowerCase();
       list = list.filter(p => 
-        p.name.toLowerCase().includes(q) || 
+        (p.name || '').toLowerCase().includes(q) || 
         (p.tagline && p.tagline.toLowerCase().includes(q)) ||
-        p.category.toLowerCase().includes(q) ||
-        (p.material && p.material.toLowerCase().includes(q))
+        (p.category || '').toLowerCase().includes(q)
       );
     }
 
     if (filters.minPrice !== undefined) {
-      list = list.filter(p => p.price >= Number(filters.minPrice));
+      list = list.filter(p => Number(p.price) >= Number(filters.minPrice));
     }
     if (filters.maxPrice !== undefined) {
-      list = list.filter(p => p.price <= Number(filters.maxPrice));
+      list = list.filter(p => Number(p.price) <= Number(filters.maxPrice));
     }
 
-    if (filters.sort) {
-      if (filters.sort === 'price_asc') {
-        list.sort((a, b) => a.price - b.price);
-      } else if (filters.sort === 'price_desc') {
-        list.sort((a, b) => b.price - a.price);
-      } else if (filters.sort === 'newest') {
-        list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      } else if (filters.sort === 'bestseller') {
-        list.sort((a, b) => (b.is_bestseller || 0) - (a.is_bestseller || 0));
-      }
+    if (filters.sort === 'price_asc') {
+      list.sort((a, b) => Number(a.price) - Number(b.price));
+    } else if (filters.sort === 'price_desc') {
+      list.sort((a, b) => Number(b.price) - Number(a.price));
+    } else if (filters.sort === 'bestseller') {
+      list.sort((a, b) => (Number(b.is_bestseller) || 0) - (Number(a.is_bestseller) || 0));
     }
 
     return list;
   }
 
-  getProductById(id) {
-    return this.data.products.find(p => p.id === id || p.slug === id);
+  async getProductById(id) {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .or(`id.eq.${id},slug.eq.${id}`)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Supabase getProductById Error]', error);
+        return this.localData.products.find(p => p.id === id || p.slug === id);
+      }
+      return data;
+    }
+
+    return this.localData.products.find(p => p.id === id || p.slug === id) || null;
   }
 
-  createProduct(productData) {
+  async createProduct(productData) {
     const id = "prod-" + Date.now();
     const slug = (productData.name || "piece")
       .toLowerCase()
@@ -160,331 +227,431 @@ class DatabaseEngine {
       updated_at: new Date().toISOString()
     };
 
-    this.data.products.unshift(newProduct);
-    this.save();
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('products')
+        .insert(newProduct)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase createProduct Error]', error);
+        throw new Error(error.message);
+      }
+      return data;
+    }
+
+    this.localData.products.unshift(newProduct);
+    this.saveLocal();
     return newProduct;
   }
 
-  updateProduct(id, updates) {
-    const idx = this.data.products.findIndex(p => p.id === id || p.slug === id);
+  async updateProduct(id, updates) {
+    const cleanUpdates = { ...updates, updated_at: new Date().toISOString() };
+    if (cleanUpdates.price !== undefined) cleanUpdates.price = Number(cleanUpdates.price);
+    if (cleanUpdates.stock !== undefined) {
+      cleanUpdates.stock = Number(cleanUpdates.stock);
+      cleanUpdates.in_stock = cleanUpdates.stock > 0 ? 1 : 0;
+    }
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('products')
+        .update(cleanUpdates)
+        .or(`id.eq.${id},slug.eq.${id}`)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase updateProduct Error]', error);
+        throw new Error(error.message);
+      }
+      return data;
+    }
+
+    const idx = this.localData.products.findIndex(p => p.id === id || p.slug === id);
     if (idx === -1) return null;
-
-    const existing = this.data.products[idx];
-    const updated = {
-      ...existing,
-      ...updates,
-      price: updates.price !== undefined ? Number(updates.price) : existing.price,
-      stock: updates.stock !== undefined ? Number(updates.stock) : existing.stock,
-      in_stock: updates.stock !== undefined ? (Number(updates.stock) > 0 ? 1 : 0) : existing.in_stock,
-      updated_at: new Date().toISOString()
-    };
-
-    this.data.products[idx] = updated;
-    this.save();
-    return updated;
+    this.localData.products[idx] = { ...this.localData.products[idx], ...cleanUpdates };
+    this.saveLocal();
+    return this.localData.products[idx];
   }
 
-  deleteProduct(id) {
-    const idx = this.data.products.findIndex(p => p.id === id || p.slug === id);
+  async deleteProduct(id) {
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .or(`id.eq.${id},slug.eq.${id}`);
+
+      if (error) {
+        console.error('[Supabase deleteProduct Error]', error);
+        throw new Error(error.message);
+      }
+      return true;
+    }
+
+    const idx = this.localData.products.findIndex(p => p.id === id || p.slug === id);
     if (idx === -1) return false;
-    this.data.products.splice(idx, 1);
-    this.save();
+    this.localData.products.splice(idx, 1);
+    this.saveLocal();
     return true;
   }
 
-  // --- ORDERS & PAYMENTS ---
-  validateAndPriceItems(rawItems = []) {
+  // ============================================================
+  // ORDERS CRUD
+  // ============================================================
+  async getOrders(status = null) {
+    if (isSupabaseConfigured() && supabase) {
+      let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (status && status !== 'All' && status !== 'all') {
+        query = query.eq('order_status', status);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error('[Supabase getOrders Error]', error);
+        return this.localData.orders;
+      }
+      return data || [];
+    }
+
+    let list = [...this.localData.orders];
+    if (status && status !== 'All' && status !== 'all') {
+      list = list.filter(o => o.order_status === status);
+    }
+    return list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+
+  async getOrderById(id) {
+    if (!id) return null;
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or(`id.eq.${id},order_number.eq.${id},razorpay_order_id.eq.${id}`)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Supabase getOrderById Error]', error);
+        return this.localData.orders.find(o => o.id === id || o.order_number === id || o.razorpay_order_id === id);
+      }
+      return data;
+    }
+
+    return this.localData.orders.find(o => o.id === id || o.order_number === id || o.razorpay_order_id === id) || null;
+  }
+
+  async createOrder(orderData) {
+    const id = "ord-" + Date.now();
+    const orderNumber = "ARH-2026-" + Math.floor(1000 + Math.random() * 9000);
+
+    // Compute totals server-side
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.price) * (Number(item.quantity) || 1)), 0);
+    const shippingFee = subtotal >= 499 ? 0 : 49;
+    const totalAmount = subtotal + shippingFee;
+
+    const newOrder = {
+      id,
+      order_number: orderNumber,
+      customer_id: orderData.customer_id || null,
+      customer_name: String(orderData.customer_name || 'Collector').trim(),
+      customer_email: String(orderData.customer_email || '').trim().toLowerCase(),
+      customer_phone: String(orderData.customer_phone || '').trim(),
+      shipping_address: String(orderData.shipping_address || '').trim(),
+      city: String(orderData.city || 'Bengaluru').trim(),
+      state: String(orderData.state || 'Karnataka').trim(),
+      pincode: String(orderData.pincode || '').trim(),
+      delivery_instructions: orderData.delivery_instructions ? String(orderData.delivery_instructions).trim() : '',
+      payment_method: orderData.payment_method || 'Cash on Delivery (COD)',
+      payment_status: orderData.payment_status || (orderData.payment_method?.includes('COD') ? 'Pending' : 'Paid'),
+      order_status: orderData.order_status || 'Confirmed',
+      items,
+      subtotal,
+      shipping_fee: shippingFee,
+      total_amount: totalAmount,
+      razorpay_order_id: orderData.razorpay_order_id || null,
+      razorpay_payment_id: orderData.razorpay_payment_id || null,
+      tracking_number: orderData.tracking_number || null,
+      courier_name: orderData.courier_name || null,
+      tracking_url: orderData.tracking_url || null,
+      estimated_delivery: orderData.estimated_delivery || null,
+      email_sent: false,
+      notes: orderData.notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .insert(newOrder)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase createOrder Error]', error);
+        throw new Error(error.message);
+      }
+
+      const isCod = orderData.payment_method === 'Cash on Delivery (COD)';
+      const shouldDeductStockImmediately = isCod || orderData.payment_status === 'Paid';
+
+      // Decrement stock for ordered products in Supabase if COD or Paid
+      if (shouldDeductStockImmediately) {
+        for (const item of items) {
+          if (item.id) {
+            const prod = await this.getProductById(item.id);
+            if (prod) {
+              const newStock = Math.max(0, (Number(prod.stock) || 0) - (Number(item.quantity) || 1));
+              await this.updateProduct(prod.id, { stock: newStock });
+            }
+          }
+        }
+      }
+
+      return data;
+    }
+
+    // Local Fallback
+    const isCod = orderData.payment_method === 'Cash on Delivery (COD)';
+    const shouldDeductStockImmediately = isCod || orderData.payment_status === 'Paid';
+
+    if (shouldDeductStockImmediately) {
+      items.forEach(item => {
+        const prod = this.localData.products.find(p => p.id === item.id);
+        if (prod) {
+          prod.stock = Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1));
+          prod.in_stock = prod.stock > 0 ? 1 : 0;
+        }
+      });
+    }
+
+    this.localData.orders.unshift(newOrder);
+    this.saveLocal();
+    return newOrder;
+  }
+
+  async updateOrderStatus(id, updates) {
+    const cleanUpdates = { ...updates, updated_at: new Date().toISOString() };
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update(cleanUpdates)
+        .or(`id.eq.${id},order_number.eq.${id}`)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase updateOrderStatus Error]', error);
+        throw new Error(error.message);
+      }
+      return data;
+    }
+
+    const order = this.localData.orders.find(o => o.id === id || o.order_number === id);
+    if (!order) return null;
+    Object.assign(order, cleanUpdates);
+    this.saveLocal();
+    return order;
+  }
+
+  validateAndPriceItems(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      throw new Error('Your cart is empty. Please add items to proceed.');
+      throw new Error("Order must contain at least one piece.");
     }
 
     let subtotal = 0;
-    const verifiedItems = rawItems.map(raw => {
-      const prodId = raw.id || raw.product_id;
-      const product = this.getProductById(prodId);
-
+    const verifiedItems = rawItems.map(rawItem => {
+      // Find authoritative product in catalog
+      const product = this.localData.products.find(p => p.id === rawItem.id);
       if (!product) {
-        throw new Error(`Product "${raw.name || prodId}" was not found in our catalog.`);
+        throw new Error(`Piece "${rawItem.name || rawItem.id}" is no longer available in the catalog.`);
       }
 
-      const qty = Math.max(1, parseInt(raw.quantity, 10) || 1);
-      const stock = product.stock !== undefined ? product.stock : 10;
-
-      if (stock < qty) {
-        throw new Error(`Insufficient stock for "${product.name}". Only ${stock} pieces available.`);
+      const qty = Math.max(1, parseInt(rawItem.quantity, 10) || 1);
+      if ((product.stock || 0) < qty) {
+        throw new Error(`Insufficient inventory for "${product.name}". Only ${product.stock} available.`);
       }
 
-      const authoritativePrice = Number(product.price);
-      subtotal += authoritativePrice * qty;
+      const verifiedPrice = Number(product.price);
+      subtotal += verifiedPrice * qty;
 
       return {
         id: product.id,
-        product_id: product.id,
         name: product.name,
-        price: authoritativePrice,
+        price: verifiedPrice,
         quantity: qty,
-        variant: raw.variant || null,
-        image_url: product.image_url || product.gallery?.[0] || '/images/ring_sculptural.jpg'
+        variant: rawItem.variant || (product.variants?.[0]?.name) || "Standard Fit",
+        image_url: product.image_url
       };
     });
 
-    const settings = this.data.siteContent?.settings || { freeShippingThreshold: 499, standardShippingFee: 49 };
+    const settings = this.localData.siteContent?.settings || { freeShippingThreshold: 499, standardShippingFee: 49 };
     const threshold = Number(settings.freeShippingThreshold) || 499;
     const fee = Number(settings.standardShippingFee) || 49;
     const shipping_fee = subtotal >= threshold ? 0 : fee;
     const total_amount = subtotal + shipping_fee;
 
-    return {
-      verifiedItems,
-      subtotal,
-      shipping_fee,
-      total_amount
-    };
+    return { verifiedItems, subtotal, shipping_fee, total_amount };
   }
 
-  getOrders(statusFilter) {
-    if (!statusFilter || statusFilter === 'all' || statusFilter === 'All') {
-      return this.data.orders || [];
-    }
-    return (this.data.orders || []).filter(o => 
-      o.order_status.toLowerCase() === statusFilter.toLowerCase()
-    );
-  }
+  async markOrderPaid(orderIdOrNumber, { payment_id, razorpay_signature }) {
+    const order = await this.getOrderById(orderIdOrNumber);
+    if (!order) return { alreadyProcessed: false, order: null };
 
-  getOrderById(id) {
-    if (!id) return null;
-    return (this.data.orders || []).find(o => 
-      o.id === id || 
-      o.order_number === id || 
-      o.razorpay_order_id === id
-    );
-  }
-
-  createOrder(orderPayload) {
-    // Authoritatively price and validate stock on the server
-    const { verifiedItems, subtotal, shipping_fee, total_amount } = this.validateAndPriceItems(orderPayload.items);
-
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const order_number = `ARH-${new Date().getFullYear()}-${randomSuffix}`;
-    const id = "ord-" + Date.now();
-
-    const isCod = orderPayload.payment_method === 'Cash on Delivery (COD)';
-    const payment_method = orderPayload.payment_method || 'Razorpay Online (UPI/Cards/NetBanking)';
-    const payment_status = isCod ? 'Pending' : (orderPayload.payment_status || 'Pending');
-    const order_status = isCod ? 'Confirmed' : (orderPayload.order_status || 'Pending Payment');
-
-    // Auto-reserve stock if COD or pre-authorized
-    if (isCod) {
-      verifiedItems.forEach(item => {
-        const prod = this.getProductById(item.id);
-        if (prod) {
-          const newStock = Math.max(0, (prod.stock || 0) - item.quantity);
-          this.updateProduct(prod.id, { stock: newStock });
-        }
-      });
-    }
-
-    const newOrder = {
-      id,
-      order_number,
-      customer_id: orderPayload.customer_id || null,
-      customer_name: String(orderPayload.customer_name).trim(),
-      customer_email: String(orderPayload.customer_email).trim().toLowerCase(),
-      customer_phone: String(orderPayload.customer_phone).trim(),
-      shipping_address: String(orderPayload.shipping_address).trim(),
-      city: String(orderPayload.city || 'Bengaluru').trim(),
-      state: String(orderPayload.state || 'Karnataka').trim(),
-      pincode: String(orderPayload.pincode || '560001').trim(),
-      delivery_instructions: orderPayload.delivery_instructions ? String(orderPayload.delivery_instructions).trim() : '',
-      payment_method,
-      payment_status,
-      order_status,
-      razorpay_order_id: orderPayload.razorpay_order_id || null,
-      razorpay_payment_id: orderPayload.razorpay_payment_id || null,
-      razorpay_signature: orderPayload.razorpay_signature || null,
-      items: verifiedItems,
-      subtotal,
-      shipping_fee,
-      total_amount,
-      courier_name: null,
-      tracking_number: null,
-      tracking_url: null,
-      estimated_delivery: null,
-      email_sent: false,
-      email_sent_at: null,
-      payment_verified_at: null,
-      notes: orderPayload.notes || '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    if (!this.data.orders) this.data.orders = [];
-    this.data.orders.unshift(newOrder);
-    this.save();
-    return newOrder;
-  }
-
-  markOrderPaid(orderIdOrNumber, { payment_id, razorpay_signature }) {
-    const order = this.getOrderById(orderIdOrNumber);
-    if (!order) return null;
-
-    // Idempotency: prevent duplicate payment processing
     if (order.payment_status === 'Paid') {
       return { alreadyProcessed: true, order };
     }
 
-    // Deduct stock on successful payment confirmation
+    const updates = {
+      payment_status: 'Paid',
+      order_status: 'Confirmed',
+      razorpay_payment_id: payment_id,
+      razorpay_signature: razorpay_signature || null,
+      updated_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update(updates)
+        .or(`id.eq.${order.id},order_number.eq.${order.order_number}`)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase markOrderPaid Error]', error);
+        throw new Error(error.message);
+      }
+
+      // Decrement stock for ordered products in Supabase
+      for (const item of (order.items || [])) {
+        if (item.id) {
+          const prod = await this.getProductById(item.id);
+          if (prod) {
+            const newStock = Math.max(0, (Number(prod.stock) || 0) - (Number(item.quantity) || 1));
+            await this.updateProduct(prod.id, { stock: newStock });
+          }
+        }
+      }
+
+      return { alreadyProcessed: false, order: data };
+    }
+
+    // Local Fallback
     (order.items || []).forEach(item => {
-      const prod = this.getProductById(item.id);
+      const prod = this.localData.products.find(p => p.id === item.id);
       if (prod) {
-        const newStock = Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1));
-        this.updateProduct(prod.id, { stock: newStock });
+        prod.stock = Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1));
+        prod.in_stock = prod.stock > 0 ? 1 : 0;
       }
     });
 
-    order.payment_status = 'Paid';
-    order.order_status = 'Confirmed';
-    order.razorpay_payment_id = payment_id;
-    if (razorpay_signature) order.razorpay_signature = razorpay_signature;
-    order.payment_verified_at = new Date().toISOString();
-    order.updated_at = new Date().toISOString();
-
-    this.save();
+    Object.assign(order, updates);
+    this.saveLocal();
     return { alreadyProcessed: false, order };
   }
 
-  updateOrderStatus(id, updates = {}) {
-    const order = this.getOrderById(id);
-    if (!order) return null;
+  save() {
+    this.saveLocal();
+  }
 
-    const previousStatus = order.order_status;
-    const newStatus = updates.order_status;
-
-    // Automatic inventory reconciliation on cancellation or refund
-    if (newStatus && newStatus !== previousStatus) {
-      if ((newStatus === 'Cancelled' || newStatus === 'Refunded') && 
-          previousStatus !== 'Cancelled' && previousStatus !== 'Refunded') {
-        // Restore inventory back to products
-        (order.items || []).forEach(item => {
-          const prod = this.getProductById(item.id);
-          if (prod) {
-            this.updateProduct(prod.id, { stock: (prod.stock || 0) + (Number(item.quantity) || 1) });
-          }
-        });
-      } else if ((previousStatus === 'Cancelled' || previousStatus === 'Refunded') && 
-                 newStatus !== 'Cancelled' && newStatus !== 'Refunded') {
-        // Re-decrement inventory if restored
-        (order.items || []).forEach(item => {
-          const prod = this.getProductById(item.id);
-          if (prod) {
-            this.updateProduct(prod.id, { stock: Math.max(0, (prod.stock || 0) - (Number(item.quantity) || 1)) });
-          }
-        });
-      }
-      order.order_status = newStatus;
+  async markEmailSent(id) {
+    const updates = { email_sent: true, email_sent_at: new Date().toISOString() };
+    if (isSupabaseConfigured() && supabase) {
+      await supabase
+        .from('orders')
+        .update(updates)
+        .or(`id.eq.${id},order_number.eq.${id}`);
+      return;
     }
 
-    if (updates.payment_status !== undefined) order.payment_status = updates.payment_status;
-    if (updates.courier_name !== undefined) order.courier_name = updates.courier_name;
-    if (updates.tracking_number !== undefined) order.tracking_number = updates.tracking_number;
-    if (updates.tracking_url !== undefined) order.tracking_url = updates.tracking_url;
-    if (updates.estimated_delivery !== undefined) order.estimated_delivery = updates.estimated_delivery;
-    if (updates.shipping_fee !== undefined) {
-      order.shipping_fee = Number(updates.shipping_fee);
-      order.total_amount = (order.subtotal || 0) + order.shipping_fee;
+    const order = this.localData.orders.find(o => o.id === id || o.order_number === id);
+    if (order) {
+      Object.assign(order, updates);
+      this.saveLocal();
     }
-    if (updates.notes !== undefined) order.notes = updates.notes;
-
-    order.updated_at = new Date().toISOString();
-    this.save();
-    return order;
   }
 
-  markEmailSent(id) {
-    const order = this.getOrderById(id);
-    if (!order) return null;
-    order.email_sent = true;
-    order.email_sent_at = new Date().toISOString();
-    this.save();
-    return order;
-  }
-
-  // --- CONTENT ---
-  getSiteContent() {
-    return this.data.siteContent || defaultSiteContent;
-  }
-
-  updateSiteContent(section, updates) {
-    if (!this.data.siteContent) this.data.siteContent = { ...defaultSiteContent };
-    this.data.siteContent[section] = {
-      ...this.data.siteContent[section],
-      ...updates
+  async logEmail({ order_id, order_number, recipient_email, subject, status = 'Sent', provider = 'resend', error_message = null }) {
+    const logEntry = {
+      id: `email-${Date.now()}`,
+      order_id,
+      order_number,
+      recipient_email,
+      subject,
+      status,
+      provider,
+      error_message,
+      created_at: new Date().toISOString()
     };
-    this.save();
-    return this.data.siteContent;
-  }
 
-  // --- ANALYTICS ---
-  getAnalytics() {
-    const orders = this.data.orders || [];
-    const products = this.data.products || [];
-
-    const totalRevenue = orders.reduce((sum, o) => {
-      if (o.order_status !== 'Cancelled') {
-        return sum + (Number(o.total_amount) || 0);
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('email_logs').insert(logEntry);
+      } catch (err) {
+        console.error('[Supabase logEmail Error]', err);
       }
-      return sum;
-    }, 0);
+      return;
+    }
 
-    const totalOrders = orders.length;
-    const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-    const lowStockProducts = products.filter(p => (p.stock || 0) < 5);
-
-    // Sales by status
-    const statusCounts = {
-      Pending: orders.filter(o => o.order_status === 'Pending').length,
-      Confirmed: orders.filter(o => o.order_status === 'Confirmed').length,
-      Shipped: orders.filter(o => o.order_status === 'Shipped').length,
-      Delivered: orders.filter(o => o.order_status === 'Delivered').length,
-      Cancelled: orders.filter(o => o.order_status === 'Cancelled').length
-    };
-
-    return {
-      totalRevenue,
-      totalOrders,
-      averageOrderValue,
-      totalProducts: products.length,
-      lowStockCount: lowStockProducts.length,
-      lowStockProducts,
-      statusCounts,
-      recentOrders: orders.slice(0, 5)
-    };
+    if (!this.localData.emailLogs) this.localData.emailLogs = [];
+    this.localData.emailLogs.unshift(logEntry);
+    this.saveLocal();
   }
 
-  // --- CUSTOMER AUTH & PROFILES ---
-  _hashPassword(password, salt) {
-    return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  }
-
-  getCustomerByEmail(email) {
+  // ============================================================
+  // CUSTOMER AUTH & PROFILES
+  // ============================================================
+  async getCustomerByEmail(email) {
     if (!email) return null;
-    const clean = String(email).trim().toLowerCase();
-    return (this.data.customers || []).find(c => c.email && c.email.toLowerCase() === clean) || null;
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Supabase getCustomerByEmail Error]', error);
+        return null;
+      }
+      return data;
+    }
+
+    return (this.localData.customers || []).find(c => c.email && c.email.toLowerCase() === cleanEmail) || null;
   }
 
-  getCustomerById(id) {
+  async getCustomerById(id) {
     if (!id) return null;
-    const customer = (this.data.customers || []).find(c => c.id === id);
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, email, phone, shipping_address, city, state, pincode, created_at, updated_at')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Supabase getCustomerById Error]', error);
+        return null;
+      }
+      return data;
+    }
+
+    const customer = (this.localData.customers || []).find(c => c.id === id);
     if (!customer) return null;
     const { password_hash, salt, ...safeCustomer } = customer;
     return safeCustomer;
   }
 
-  registerCustomer({ name, email, password, phone = '', address = '', city = 'Bengaluru', state = 'Karnataka', pincode = '560001' }) {
-    if (!this.data.customers) this.data.customers = [];
-
+  async registerCustomer({ name, email, password, phone = '', address = '', city = 'Bengaluru', state = 'Karnataka', pincode = '560001' }) {
     const cleanEmail = String(email).trim().toLowerCase();
-    if (this.getCustomerByEmail(cleanEmail)) {
+    const existing = await this.getCustomerByEmail(cleanEmail);
+    if (existing) {
       throw new Error('An account with this email address already exists. Please sign in instead.');
     }
 
@@ -510,21 +677,34 @@ class DatabaseEngine {
       updated_at: new Date().toISOString()
     };
 
-    this.data.customers.push(newCustomer);
-    this.save();
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert(newCustomer)
+        .select('id, name, email, phone, shipping_address, city, state, pincode, created_at, updated_at')
+        .single();
+
+      if (error) {
+        console.error('[Supabase registerCustomer Error]', error);
+        throw new Error(error.message);
+      }
+      return data;
+    }
+
+    if (!this.localData.customers) this.localData.customers = [];
+    this.localData.customers.push(newCustomer);
+    this.saveLocal();
 
     const { password_hash: _h, salt: _s, ...safeCustomer } = newCustomer;
     return safeCustomer;
   }
 
-  authenticateCustomer(email, password) {
+  async authenticateCustomer(email, password) {
     if (!email || !password) {
       throw new Error('Email and password are required.');
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const customer = (this.data.customers || []).find(c => c.email && c.email.toLowerCase() === cleanEmail);
-
+    const customer = await this.getCustomerByEmail(email);
     if (!customer) {
       throw new Error('No account found with this email. Please check your email or create an account.');
     }
@@ -538,31 +718,157 @@ class DatabaseEngine {
     return safeCustomer;
   }
 
-  updateCustomer(id, updates = {}) {
-    const customer = (this.data.customers || []).find(c => c.id === id);
+  async updateCustomer(id, updates = {}) {
+    const cleanUpdates = { ...updates, updated_at: new Date().toISOString() };
+    delete cleanUpdates.password;
+    delete cleanUpdates.password_hash;
+    delete cleanUpdates.salt;
+    delete cleanUpdates.email; // Email is immutable identity
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('customers')
+        .update(cleanUpdates)
+        .eq('id', id)
+        .select('id, name, email, phone, shipping_address, city, state, pincode, created_at, updated_at')
+        .single();
+
+      if (error) {
+        console.error('[Supabase updateCustomer Error]', error);
+        throw new Error(error.message);
+      }
+      return data;
+    }
+
+    const customer = (this.localData.customers || []).find(c => c.id === id);
     if (!customer) return null;
-
-    if (updates.name) customer.name = String(updates.name).trim();
-    if (updates.phone !== undefined) customer.phone = String(updates.phone).trim();
-    if (updates.shipping_address !== undefined) customer.shipping_address = String(updates.shipping_address).trim();
-    if (updates.city !== undefined) customer.city = String(updates.city).trim();
-    if (updates.state !== undefined) customer.state = String(updates.state).trim();
-    if (updates.pincode !== undefined) customer.pincode = String(updates.pincode).trim();
-    customer.updated_at = new Date().toISOString();
-
-    this.save();
-
+    Object.assign(customer, cleanUpdates);
+    this.saveLocal();
     const { password_hash: _h, salt: _s, ...safeCustomer } = customer;
     return safeCustomer;
   }
 
-  getCustomerOrders(emailOrCustomerId) {
+  async getCustomerOrders(emailOrCustomerId) {
     if (!emailOrCustomerId) return [];
     const term = String(emailOrCustomerId).trim().toLowerCase();
-    return (this.data.orders || []).filter(order => 
+
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or(`customer_id.eq.${emailOrCustomerId},customer_email.eq.${term}`)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[Supabase getCustomerOrders Error]', error);
+        return [];
+      }
+      return data || [];
+    }
+
+    return (this.localData.orders || []).filter(order => 
       (order.customer_id && order.customer_id.toLowerCase() === term) ||
       (order.customer_email && order.customer_email.toLowerCase() === term)
     );
+  }
+
+  // ============================================================
+  // SITE CONTENT & MANIFESTO
+  // ============================================================
+  async getSiteContent() {
+    if (isSupabaseConfigured() && supabase) {
+      const { data, error } = await supabase
+        .from('site_content')
+        .select('*');
+
+      if (error || !data || data.length === 0) {
+        return this.localData.siteContent || defaultSiteContent;
+      }
+
+      const formatted = { ...defaultSiteContent };
+      data.forEach(row => {
+        formatted[row.section_key] = {
+          title: row.title,
+          subtitle: row.subtitle,
+          body_text: row.body_text,
+          ...(row.data_json || {})
+        };
+      });
+      return formatted;
+    }
+
+    return this.localData.siteContent || defaultSiteContent;
+  }
+
+  async updateSiteContent(section, updates) {
+    if (isSupabaseConfigured() && supabase) {
+      const row = {
+        section_key: section,
+        title: updates.title || updates.headline || '',
+        subtitle: updates.subtitle || updates.subheadline || '',
+        body_text: updates.body_text || updates.tagline || '',
+        data_json: updates,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('site_content')
+        .upsert(row, { onConflict: 'section_key' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Supabase updateSiteContent Error]', error);
+        throw new Error(error.message);
+      }
+      return await this.getSiteContent();
+    }
+
+    if (!this.localData.siteContent) this.localData.siteContent = { ...defaultSiteContent };
+    this.localData.siteContent[section] = {
+      ...this.localData.siteContent[section],
+      ...updates
+    };
+    this.saveLocal();
+    return this.localData.siteContent;
+  }
+
+  // ============================================================
+  // ANALYTICS CALCULATION
+  // ============================================================
+  async getAnalytics() {
+    const orders = await this.getOrders();
+    const products = await this.getProducts();
+
+    const totalRevenue = orders.reduce((sum, o) => {
+      if (o.order_status !== 'Cancelled') {
+        return sum + (Number(o.total_amount) || 0);
+      }
+      return sum;
+    }, 0);
+
+    const totalOrders = orders.length;
+    const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+    const lowStockProducts = products.filter(p => (Number(p.stock) || 0) < 5);
+
+    const statusCounts = {
+      Pending: orders.filter(o => o.order_status === 'Pending').length,
+      Confirmed: orders.filter(o => o.order_status === 'Confirmed').length,
+      Shipped: orders.filter(o => o.order_status === 'Shipped').length,
+      Delivered: orders.filter(o => o.order_status === 'Delivered').length,
+      Cancelled: orders.filter(o => o.order_status === 'Cancelled').length
+    };
+
+    return {
+      totalRevenue,
+      totalOrders,
+      averageOrderValue,
+      totalProducts: products.length,
+      lowStockCount: lowStockProducts.length,
+      lowStockProducts,
+      statusCounts,
+      recentOrders: orders.slice(0, 5)
+    };
   }
 }
 

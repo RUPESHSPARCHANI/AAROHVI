@@ -1,11 +1,11 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadBufferToCloudinary, isCloudinaryConfigured } from '../config/cloudinary.js';
+import { uploadImage, getActiveStorageProvider } from '../config/storage.js';
 import { requireManagerAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Configure Multer with Memory Storage (buffers kept in RAM before piping to Cloudinary)
+// Configure Multer with Memory Storage (buffers kept in RAM before piping to Supabase Storage/Cloudinary)
 const storage = multer.memoryStorage();
 
 // File filter to allow only image mime types
@@ -28,7 +28,7 @@ const upload = multer({
 
 /**
  * POST /api/upload/single
- * Upload single image to Cloudinary (Protected with Manager Auth)
+ * Upload single image (Protected with Manager Auth)
  */
 router.post('/single', requireManagerAuth, upload.single('image'), async (req, res) => {
   try {
@@ -36,11 +36,11 @@ router.post('/single', requireManagerAuth, upload.single('image'), async (req, r
       return res.status(400).json({ success: false, message: 'No image file uploaded under field "image".' });
     }
 
-    const uploadResult = await uploadBufferToCloudinary(req.file.buffer, req.file.originalname);
+    const uploadResult = await uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
 
     res.status(200).json({
       success: true,
-      message: 'Image uploaded successfully to Cloudinary',
+      message: `Image uploaded successfully to ${uploadResult.storage}`,
       data: {
         url: uploadResult.secure_url,
         public_id: uploadResult.public_id,
@@ -57,7 +57,7 @@ router.post('/single', requireManagerAuth, upload.single('image'), async (req, r
 
 /**
  * POST /api/upload/multiple
- * Upload up to 10 images concurrently to Cloudinary for product gallery (Protected with Manager Auth)
+ * Upload up to 10 images concurrently for product gallery (Protected with Manager Auth)
  */
 router.post('/multiple', requireManagerAuth, upload.array('images', 10), async (req, res) => {
   try {
@@ -65,9 +65,9 @@ router.post('/multiple', requireManagerAuth, upload.array('images', 10), async (
       return res.status(400).json({ success: false, message: 'No image files uploaded under field "images".' });
     }
 
-    // Upload all files in parallel to Cloudinary
+    // Upload all files in parallel
     const uploadPromises = req.files.map(file => 
-      uploadBufferToCloudinary(file.buffer, file.originalname)
+      uploadImage(file.buffer, file.originalname, file.mimetype)
     );
 
     const results = await Promise.all(uploadPromises);
@@ -79,9 +79,11 @@ router.post('/multiple', requireManagerAuth, upload.array('images', 10), async (
       format: r.format
     }));
 
+    const provider = uploadedImages[0]?.storage || 'storage';
+
     res.status(200).json({
       success: true,
-      message: `Successfully uploaded ${uploadedImages.length} images to Cloudinary`,
+      message: `Successfully uploaded ${uploadedImages.length} images to ${provider}`,
       count: uploadedImages.length,
       data: uploadedImages,
       urls: uploadedImages.map(img => img.url)
@@ -94,13 +96,14 @@ router.post('/multiple', requireManagerAuth, upload.array('images', 10), async (
 
 /**
  * GET /api/upload/status
- * Check if Cloudinary is configured
+ * Check active storage provider
  */
 router.get('/status', (req, res) => {
+  const provider = getActiveStorageProvider();
   res.json({
-    configured: isCloudinaryConfigured(),
-    folder: process.env.CLOUDINARY_FOLDER || 'arohvi/products',
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME ? `${process.env.CLOUDINARY_CLOUD_NAME.slice(0, 3)}***` : 'not_set'
+    configured: provider !== 'local_fallback',
+    provider,
+    bucket: process.env.SUPABASE_STORAGE_BUCKET || 'arohvi-products'
   });
 });
 
