@@ -49,11 +49,13 @@ export const ProductCard = ({ product, onSelectProduct }) => {
         )}
 
         <div className="product-pricing-row">
-          <span className="product-price">₹{product.price}</span>
-          {product.original_price && (
-            <span className="product-original-price">₹{product.original_price}</span>
-          )}
-          <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: 'var(--color-muted-champagne)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.45rem' }}>
+            <span className="product-price">₹{product.price}</span>
+            {product.original_price && (
+              <span className="product-original-price">₹{product.original_price}</span>
+            )}
+          </div>
+          <span className="product-stock-status">
             {product.stock > 0 ? 'Available' : 'Sold Out'}
           </span>
         </div>

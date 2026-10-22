@@ -183,31 +183,35 @@ export const UserHome = ({
                 />
               </div>
 
-              {/* Price Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--color-warm-ivory-dim)' }}>
-                <span>Max: <strong style={{ color: 'var(--color-muted-champagne)' }}>₹{priceRange}</strong></span>
-                <input 
-                  type="range" 
-                  min="250" 
-                  max="800" 
-                  step="50" 
-                  value={priceRange} 
-                  onChange={(e) => setPriceRange(Number(e.target.value))}
-                  style={{ width: '80px', accentColor: 'var(--color-ruby-red)', cursor: 'pointer' }}
-                />
-              </div>
+              <div className="filter-sub-controls">
+                {/* Price Filter */}
+                <div className="filter-price-box">
+                  <span>Max: <strong className="filter-price-val">₹{priceRange}</strong></span>
+                  <input 
+                    type="range" 
+                    min="250" 
+                    max="800" 
+                    step="50" 
+                    value={priceRange} 
+                    onChange={(e) => setPriceRange(Number(e.target.value))}
+                    className="filter-range-input"
+                    aria-label="Filter by maximum price"
+                  />
+                </div>
 
-              {/* Sort Dropdown */}
-              <select 
-                className="select-dropdown"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="featured">Featured Pieces</option>
-                <option value="bestseller">Signature / Bestsellers</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-              </select>
+                {/* Sort Dropdown */}
+                <select 
+                  className="select-dropdown"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  aria-label="Sort products by"
+                >
+                  <option value="featured">Featured Pieces</option>
+                  <option value="bestseller">Signature / Bestsellers</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -291,35 +295,35 @@ export const UserHome = ({
       </section>
 
       {/* 5. Pan-India Delivery & Trust Highlights */}
-      <section style={{ backgroundColor: 'var(--color-obsidian)', borderTop: '1px solid var(--color-subtle-border)', padding: '3.5rem 2rem' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-            <div style={{ padding: '0.8rem', backgroundColor: 'var(--color-charcoal-secondary)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', color: 'var(--color-ruby-red)' }}>
-              <Truck size={24} />
+      <section className="trust-highlights-section">
+        <div className="trust-highlights-grid">
+          <div className="trust-highlight-card">
+            <div className="trust-highlight-icon">
+              <Truck size={22} />
             </div>
             <div>
-              <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-warm-ivory)', marginBottom: '0.3rem' }}>Pan-India Express Dispatch</h4>
-              <p style={{ fontSize: '0.86rem', color: 'var(--color-warm-ivory-dim)', lineHeight: '1.5' }}>Shipped directly from our Bangalore studio via Bluedart and Delhivery with tracking updates.</p>
+              <h4 className="trust-highlight-title">Pan-India Express Dispatch</h4>
+              <p className="trust-highlight-desc">Shipped directly from our Bangalore studio via Bluedart and Delhivery with tracking updates.</p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-            <div style={{ padding: '0.8rem', backgroundColor: 'var(--color-charcoal-secondary)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', color: 'var(--color-ruby-red)' }}>
-              <RefreshCw size={24} />
+          <div className="trust-highlight-card">
+            <div className="trust-highlight-icon">
+              <RefreshCw size={22} />
             </div>
             <div>
-              <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-warm-ivory)', marginBottom: '0.3rem' }}>7-Day Transit Replacement</h4>
-              <p style={{ fontSize: '0.86rem', color: 'var(--color-warm-ivory-dim)', lineHeight: '1.5' }}>Zero-friction replacement guarantee if any piece arrives damaged or flawed during courier transit.</p>
+              <h4 className="trust-highlight-title">7-Day Transit Replacement</h4>
+              <p className="trust-highlight-desc">Zero-friction replacement guarantee if any piece arrives damaged or flawed during courier transit.</p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-            <div style={{ padding: '0.8rem', backgroundColor: 'var(--color-charcoal-secondary)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', color: 'var(--color-ruby-red)' }}>
-              <Shield size={24} />
+          <div className="trust-highlight-card">
+            <div className="trust-highlight-icon">
+              <Shield size={22} />
             </div>
             <div>
-              <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--color-warm-ivory)', marginBottom: '0.3rem' }}>Accessible Honest Pricing</h4>
-              <p style={{ fontSize: '0.86rem', color: 'var(--color-warm-ivory-dim)', lineHeight: '1.5' }}>No inflated bridal margins or fake discounts. Thoughtful pricing between ₹100 and ₹800.</p>
+              <h4 className="trust-highlight-title">Accessible Honest Pricing</h4>
+              <p className="trust-highlight-desc">No inflated bridal margins or fake discounts. Thoughtful pricing between ₹100 and ₹800.</p>
             </div>
           </div>
         </div>

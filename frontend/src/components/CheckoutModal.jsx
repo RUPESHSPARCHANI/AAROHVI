@@ -238,7 +238,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
         </div>
 
         {/* Content Body */}
-        <div style={{ padding: '2rem 2.5rem' }}>
+        <div className="checkout-modal-body">
           {confirmedOrder ? (
             /* Order Placed Success View */
             <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
@@ -259,7 +259,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
               <span style={{ fontSize: '0.8rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--color-muted-champagne)', fontWeight: 600 }}>
                 Thank You for Adorning the Unordinary
               </span>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2.4rem', color: 'var(--color-warm-ivory)', margin: '0.5rem 0 0.8rem' }}>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(1.5rem, 5.5vw, 2.4rem)', color: 'var(--color-warm-ivory)', margin: '0.5rem 0 0.8rem', wordBreak: 'break-word' }}>
                 Order #{confirmedOrder.order_number}
               </h2>
 
@@ -268,7 +268,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
               </p>
 
               {/* Order Quick Summary Card */}
-              <div style={{ maxWidth: '500px', margin: '0 auto 2rem', backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', padding: '1.5rem', borderRadius: '4px', textAlign: 'left' }}>
+              <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto 2rem', backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', padding: '1.25rem', borderRadius: '4px', textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.86rem' }}>
                   <span style={{ color: 'var(--color-warm-ivory-dim)' }}>Payment Status:</span>
                   <span style={{ 
@@ -506,21 +506,9 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
                       return (
                         <label 
                           key={opt.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.9rem 1.1rem',
-                            backgroundColor: isSelected ? 'var(--color-charcoal-elevated)' : 'var(--color-obsidian)',
-                            border: `1px solid ${isSelected ? 'var(--color-muted-champagne)' : 'var(--color-subtle-border)'}`,
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.88rem',
-                            color: isSelected ? 'var(--color-warm-ivory)' : 'var(--color-warm-ivory-dim)',
-                            transition: 'var(--transition-smooth)'
-                          }}
+                          className={`checkout-payment-option ${isSelected ? 'selected' : ''}`}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <div className="checkout-payment-left">
                             <input 
                               type="radio" 
                               name="payment_method" 
@@ -529,20 +517,11 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
                               onChange={handleChange}
                               style={{ accentColor: 'var(--color-ruby-red)' }}
                             />
-                            <Icon size={18} color={isSelected ? 'var(--color-muted-champagne)' : 'currentColor'} />
-                            <span>{opt.label}</span>
+                            <Icon size={18} color={isSelected ? 'var(--color-muted-champagne)' : 'currentColor'} style={{ flexShrink: 0 }} />
+                            <span className="checkout-payment-label">{opt.label}</span>
                           </div>
 
-                          <span style={{
-                            fontSize: '0.68rem',
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '2px',
-                            backgroundColor: isSelected ? 'rgba(217, 185, 155, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                            color: isSelected ? 'var(--color-muted-champagne)' : 'var(--color-warm-ivory-dim)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)'
-                          }}>
+                          <span className="checkout-payment-badge">
                             {opt.badge}
                           </span>
                         </label>
@@ -552,7 +531,7 @@ export const CheckoutModal = ({ isOpen, onClose, onOrderPlaced }) => {
                 </div>
 
                 {/* Right Column: Order Summary */}
-                <div style={{ backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', padding: '1.8rem', height: 'fit-content' }}>
+                <div className="checkout-summary-box">
                   <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: 'var(--color-warm-ivory)', marginBottom: '1.25rem' }}>
                     Order Summary ({cartItems.length} items)
                   </h4>

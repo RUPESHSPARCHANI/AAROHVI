@@ -122,11 +122,12 @@ export const Footer = ({ onNavigate }) => {
         <div>
           © {new Date().getFullYear()} AROHVI Adornments. All rights reserved. Founded by Tulsi Prakash.
         </div>
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-          <span>Obsidian Charcoal · Deep Burgundy · Ruby Red · Warm Ivory</span>
+        <div className="footer-bottom-meta">
+          <span className="footer-color-palette">Obsidian Charcoal · Deep Burgundy · Ruby Red · Warm Ivory</span>
           <button 
             onClick={scrollToTop}
-            style={{ background: 'transparent', border: '1px solid var(--color-subtle-border)', color: 'var(--color-warm-ivory-dim)', padding: '0.4rem 0.8rem', borderRadius: '2px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem' }}
+            className="footer-back-to-top-btn"
+            aria-label="Scroll back to top"
           >
             <span>Top</span>
             <ArrowUp size={12} />

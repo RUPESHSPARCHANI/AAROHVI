@@ -67,8 +67,8 @@ export const TrackOrderModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div style={{ padding: '2rem' }}>
-          <form onSubmit={handleTrack} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div className="track-order-modal-body">
+          <form onSubmit={handleTrack} className="track-order-form">
             <div className="search-input-wrapper" style={{ flexGrow: 1 }}>
               <Search size={16} className="search-icon-pos" />
               <input 
@@ -98,10 +98,10 @@ export const TrackOrderModal = ({ isOpen, onClose }) => {
           )}
 
           {orderData && (
-            <div style={{ backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', padding: '1.8rem', marginTop: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--color-subtle-border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ backgroundColor: 'var(--color-obsidian)', border: '1px solid var(--color-subtle-border)', borderRadius: '4px', padding: '1.25rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--color-subtle-border)', paddingBottom: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
-                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--color-warm-ivory)' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--color-warm-ivory)', wordBreak: 'break-word' }}>
                     Order #{orderData.order_number}
                   </h4>
                   <div style={{ fontSize: '0.8rem', color: 'var(--color-warm-ivory-dim)', marginTop: '0.2rem' }}>
@@ -114,7 +114,7 @@ export const TrackOrderModal = ({ isOpen, onClose }) => {
               </div>
 
               {/* Progress Milestones */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', textAlign: 'center', marginBottom: '2rem' }}>
+              <div className="track-milestones-grid">
                 {['Received', 'Confirmed', 'Dispatched', 'Delivered'].map((step, idx) => {
                   const currentIdx = getStepIndex(orderData.order_status);
                   const isDone = idx <= currentIdx;
