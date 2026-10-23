@@ -5,7 +5,11 @@
   "description": "AROHVI Adorn the Unordinary - E-Commerce Platform",
   "scripts": {
     "start": "npm --prefix backend start",
-    "build": "npm --prefix backend install",
+    "build": "npm install && npm --prefix backend install && npm --prefix database install",
     "build:frontend": "npm --prefix frontend install && npm --prefix frontend run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.0",
+    "dotenv": "^16.4.7"
   }
 }
