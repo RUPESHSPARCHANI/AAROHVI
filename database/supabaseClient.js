@@ -3,8 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+const rawUrl = process.env.SUPABASE_URL;
+const supabaseUrl = rawUrl 
+  ? String(rawUrl).trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')
+  : null;
+const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
 
 export const isSupabaseConfigured = () => {
   return Boolean(
