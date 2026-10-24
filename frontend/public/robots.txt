@@ -1,0 +1,6 @@
+# robots.txt for AROHVI (Adorn the Unordinary)
+User-agent: *
+Allow: /
+Disallow: /manager
+
+Sitemap: https://aarohvi.vercel.app/sitemap.xml
